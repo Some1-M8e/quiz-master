@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+*.db
+
+# Environment
+.env
+
+# Node
+node_modules/
+dist/
+
+# Playwright
+playwright-report/
+test-results/
+screenshots/
+
+# IDE
+.vscode/
+.idea/
