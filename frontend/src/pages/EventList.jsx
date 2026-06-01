@@ -40,6 +40,7 @@ export default function EventList({ onSelect }) {
           <div>
             <strong>{displayTitle(e.title)}</strong>
             <div style={{ color: "#6b7280", fontSize: "0.9rem" }}>{new Date(e.event_date).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</div>
+            <div style={{ color: "#6366f1", fontSize: "0.8rem", marginTop: 2 }}>Klicke für mehr Details</div>
           </div>
           <div style={{ textAlign: "right" }}>
             <span style={{ background: STATUS_COLOR[e.status], color: "white", padding: "2px 10px", borderRadius: 12, fontSize: "0.8rem" }}>{STATUS_LABEL[e.status]}</span>

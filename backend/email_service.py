@@ -142,3 +142,21 @@ def send_reminder(participant_name: str, email: str, event_title: str, event_dat
     <p>Wir sehen uns!</p>
     """
     _send(email, f"Erinnerung: {event_title} steht an!", body)
+
+
+def send_maybe_reminder(participant_name: str, email: str, event_title: str, event_date: str, token: str, event_description: str = ""):
+    info = _event_info_block(event_title, event_date, event_description)
+    yes_link = f"{settings.app_url}/rsvp/{token}/yes"
+    no_link = f"{settings.app_url}/rsvp/{token}/no"
+    body = f"""
+    <p>Hallo {participant_name},</p>
+    <p>es ist noch eine Woche bis zum Quiz-Abend. Bitte bestätige deine Teilnahme oder sage ab — du hast 24 Stunden Zeit!</p>
+    {info}
+    <p>
+        <a href="{yes_link}" style="padding:8px 16px;background:#22c55e;color:white;text-decoration:none;border-radius:4px;">Zusagen</a>
+        &nbsp;&nbsp;
+        <a href="{no_link}" style="padding:8px 16px;background:#ef4444;color:white;text-decoration:none;border-radius:4px;">Absagen</a>
+    </p>
+    <p>Wenn du nicht antwortest, wird deine Anmeldung als Absage gewertet.</p>
+    """
+    _send(email, f"Bestätigung nötig: {event_title}", body)

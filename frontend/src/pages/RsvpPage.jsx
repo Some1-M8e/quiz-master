@@ -5,9 +5,16 @@ export default function RsvpPage({ token }) {
   const [data, setData] = useState(null);
   const [companions, setCompanions] = useState(0);
   const [done, setDone] = useState(null);
+  const [daysUntil, setDaysUntil] = useState(null);
 
   useEffect(() => {
-    api.get(`/rsvp/${token}`).then(setData);
+    api.get(`/rsvp/${token}`).then((res) => {
+      setData(res);
+      const eventDate = new Date(res.event_date);
+      const now = new Date();
+      const days = Math.ceil((eventDate - now) / (1000 * 60 * 60 * 24));
+      setDaysUntil(days);
+    });
   }, [token]);
 
   const respond = async (response) => {
@@ -33,7 +40,7 @@ export default function RsvpPage({ token }) {
   }
 
   return (
-    <div style={{ maxWidth: 500, margin: "2rem auto", padding: "1.5rem", fontFamily: "sans-serif", border: "1px solid #e5e7eb", borderRadius: 12 }}>
+    <div style={{ maxWidth: 500, margin: "2rem auto", padding: "1.5rem", fontFamily: "sans-serif", border: "1px solid #e5e7eb", borderRadius: 12, background: "white" }}>
       <h2>Quiz-Master</h2>
       <p>Hallo <strong>{data.participant_name}</strong>,</p>
       <p>möchtest du am Quiz-Abend <strong>{data.event_title}</strong> am <strong>{data.event_date}</strong> teilnehmen?</p>
@@ -42,11 +49,19 @@ export default function RsvpPage({ token }) {
         <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Begleitungen:</label>
         <select value={companions} onChange={(e) => setCompanions(Number(e.target.value))}
           style={{ padding: "0.4rem", borderRadius: 6, border: "1px solid #d1d5db", width: "100%" }}>
-          {[0, 1, 2, 3, 4].map((n) => (
+          {[0, 1].map((n) => (
             <option key={n} value={n}>{n === 0 ? "Keine Begleitung" : `+${n}`}</option>
           ))}
         </select>
       </div>
+
+      {data.detail_url && (
+        <p style={{ marginBottom: "1.5rem" }}>
+          <a href={data.detail_url} target="_blank" rel="noreferrer" style={{ color: "#6366f1" }}>
+            Zur Veranstaltungsseite
+          </a>
+        </p>
+      )}
 
       <div style={{ display: "flex", gap: "1rem" }}>
         <button onClick={() => respond("yes")}
@@ -54,7 +69,8 @@ export default function RsvpPage({ token }) {
           Zusagen
         </button>
         <button onClick={() => respond("maybe")}
-          style={{ flex: 1, padding: "0.75rem", background: "#f59e0b", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}>
+          disabled={daysUntil !== null && daysUntil <= 7}
+          style={{ flex: 1, padding: "0.75rem", background: daysUntil !== null && daysUntil <= 7 ? "#d1d5db" : "#f59e0b", color: daysUntil !== null && daysUntil <= 7 ? "#6b7280" : "white", border: "none", borderRadius: 8, cursor: daysUntil !== null && daysUntil <= 7 ? "not-allowed" : "pointer", fontSize: "1rem", fontWeight: "bold" }}>
           Vielleicht
         </button>
         <button onClick={() => respond("no")}
@@ -62,6 +78,11 @@ export default function RsvpPage({ token }) {
           Absagen
         </button>
       </div>
+      {daysUntil !== null && daysUntil <= 7 && (
+        <p style={{ marginTop: "1rem", color: "#6b7280", fontSize: "0.9rem" }}>
+          Ab einer Woche vor der Veranstaltung müssen Sie sich definitiv anmelden oder absagen.
+        </p>
+      )}
     </div>
   );
 }

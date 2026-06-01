@@ -1,0 +1,7 @@
+{
+  "env": {
+    "CLAUDE_CODE_EFFORT_LEVEL": "medium",
+    "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "75",
+    "ENABLE_TOOL_SEARCH": "auto:5"
+  }
+}

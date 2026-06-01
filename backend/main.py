@@ -157,6 +157,7 @@ def rsvp_page_data(token: str, db: Session = Depends(get_db)):
         "event_date": rsvp.event.event_date.strftime("%d.%m.%Y"),
         "current_response": rsvp.response,
         "companions": rsvp.companions,
+        "detail_url": rsvp.event.detail_url,
         "token": token,
     }
 
