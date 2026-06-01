@@ -66,31 +66,37 @@ def job_booking_logic():
         now = datetime.now(timezone.utc)
         pending_events = db.query(Event).filter_by(status="pending").all()
         for event in pending_events:
-            total = _total_attendees(event)
-            created_at = event.created_at.replace(tzinfo=timezone.utc) if event.created_at.tzinfo is None else event.created_at
-            age_days = (now - created_at).days
-            should_book = total >= MIN_PARTICIPANTS or age_days >= BOOKING_DEADLINE_DAYS
-            if should_book:
-                success = asyncio.run(booking_module.book_event(
-                    detail_url=event.detail_url or event.provider.url,
-                    event_date=event.event_date,
-                    event_title=event.title,
-                ))
-                if success:
-                    event.status = "booked"
-                    event.capacity = CAPACITY
-                    _select_lineup(event)
-                    db.commit()
-                    for rsvp in event.rsvps:
-                        if rsvp.response == "yes" and rsvp.selected:
-                            send_booking_confirmation(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"), event_description=event.description or "")
-                    logger.info(f"Termin gebucht: {event.title}")
+            success = asyncio.run(booking_module.book_event(
+                detail_url=event.detail_url or event.provider.url,
+                event_date=event.event_date,
+                event_title=event.title,
+            ))
+            if success:
+                event.status = "booked"
+                event.capacity = CAPACITY
+                db.commit()
+                for rsvp in event.rsvps:
+                    if rsvp.response in ("yes", "maybe"):
+                        send_booking_confirmation(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"), event_description=event.description or "", response=rsvp.response)
+                logger.info(f"Termin gebucht: {event.title}")
 
         booked_events = db.query(Event).filter_by(status="booked").all()
         for event in booked_events:
             event_date = event.event_date.replace(tzinfo=timezone.utc) if event.event_date.tzinfo is None else event.event_date
             days_until = (event_date - now).days
-            if days_until <= CANCELLATION_DAYS_BEFORE and _total_attendees(event) < MIN_PARTICIPANTS:
+
+            no_count = sum(1 + r.companions for r in event.rsvps if r.response == "no")
+            yes_maybe_count = _total_attendees(event, include_maybe=True)
+            max_possible = yes_maybe_count
+            min_without_maybe = sum(1 + r.companions for r in event.rsvps if r.response == "yes")
+
+            should_cancel = False
+            if min_without_maybe < MIN_PARTICIPANTS:
+                should_cancel = True
+            elif days_until <= CANCELLATION_DAYS_BEFORE and yes_maybe_count < MIN_PARTICIPANTS:
+                should_cancel = True
+
+            if should_cancel:
                 success = asyncio.run(booking_module.cancel_booking(
                     detail_url=event.detail_url or event.provider.url,
                     event_date=event.event_date,
@@ -100,7 +106,7 @@ def job_booking_logic():
                     event.status = "cancelled"
                     db.commit()
                     for rsvp in event.rsvps:
-                        if rsvp.response == "yes":
+                        if rsvp.response in ("yes", "maybe"):
                             send_cancellation(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"), event_description=event.description or "")
                     logger.info(f"Termin storniert: {event.title}")
     finally:
@@ -157,12 +163,27 @@ def job_maybe_auto_convert():
     finally:
         db.close()
 
+def job_weekly_reminder():
+    from email_service import send_weekly_reminder
+    db = SessionLocal()
+    try:
+        now = datetime.now(timezone.utc)
+        booked_events = db.query(Event).filter_by(status="booked").all()
+        for event in booked_events:
+            for rsvp in event.rsvps:
+                if rsvp.response in (None, "maybe") and rsvp.response != "no":
+                    send_weekly_reminder(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"), rsvp.token, event_description=event.description or "")
+        db.commit()
+    finally:
+        db.close()
+
 def start_scheduler():
     scheduler.add_job(job_scraper, "interval", hours=1, id="scraper")
     scheduler.add_job(job_booking_logic, "interval", hours=1, id="booking")
     scheduler.add_job(job_maybe_reminders, "interval", hours=1, id="maybe_reminders")
     scheduler.add_job(job_maybe_auto_convert, "interval", hours=1, id="maybe_auto_convert")
     scheduler.add_job(job_reminders, "cron", hour=8, minute=0, id="reminders")
+    scheduler.add_job(job_weekly_reminder, "cron", day_of_week=3, hour=8, minute=0, id="weekly_reminder")
     scheduler.start()
     logger.info("Scheduler gestartet.")
 

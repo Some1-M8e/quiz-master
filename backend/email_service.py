@@ -96,12 +96,19 @@ def send_rsvp_confirmation(participant_name: str, email: str, event_title: str, 
     _send(email, subject, body)
 
 
-def send_booking_confirmation(participant_name: str, email: str, event_title: str, event_date: str, event_description: str = ""):
+def send_booking_confirmation(participant_name: str, email: str, event_title: str, event_date: str, event_description: str = "", response: str = "yes"):
     info = _event_info_block(event_title, event_date, event_description)
+    if response == "maybe":
+        intro = "der folgende Termin wurde erfolgreich gebucht — wir sind dabei!"
+        hint = "<p style=\"color:#f59e0b;margin-top:1rem;\"><strong>Wichtig:</strong> Du hattest 'Vielleicht' geantwortet. Deine endgültige Teilnahme wird 1 Woche vor dem Event nochmal überprüft.</p>"
+    else:
+        intro = "der folgende Termin wurde erfolgreich gebucht — wir sind dabei!"
+        hint = ""
     body = f"""
     <p>Hallo {participant_name},</p>
-    <p>der folgende Termin wurde erfolgreich gebucht — wir sind dabei!</p>
+    <p>{intro}</p>
     {info}
+    {hint}
     """
     _send(email, f"Termin gebucht: {event_title}", body)
 
@@ -160,3 +167,24 @@ def send_maybe_reminder(participant_name: str, email: str, event_title: str, eve
     <p>Wenn du nicht antwortest, wird deine Anmeldung als Absage gewertet.</p>
     """
     _send(email, f"Bestätigung nötig: {event_title}", body)
+
+
+def send_weekly_reminder(participant_name: str, email: str, event_title: str, event_date: str, token: str, event_description: str = ""):
+    info = _event_info_block(event_title, event_date, event_description)
+    yes_link = f"{settings.app_url}/rsvp/{token}/yes"
+    no_link = f"{settings.app_url}/rsvp/{token}/no"
+    maybe_link = f"{settings.app_url}/rsvp/{token}/maybe"
+    body = f"""
+    <p>Hallo {participant_name},</p>
+    <p>eine wöchentliche Erinnerung zum Quiz-Abend:</p>
+    {info}
+    <p>
+        <a href="{yes_link}" style="padding:8px 16px;background:#22c55e;color:white;text-decoration:none;border-radius:4px;">Zusagen</a>
+        &nbsp;&nbsp;
+        <a href="{maybe_link}" style="padding:8px 16px;background:#f59e0b;color:white;text-decoration:none;border-radius:4px;">Vielleicht</a>
+        &nbsp;&nbsp;
+        <a href="{no_link}" style="padding:8px 16px;background:#ef4444;color:white;text-decoration:none;border-radius:4px;">Absagen</a>
+    </p>
+    <p>Falls du noch nicht geantwortet hast, bitte teil uns mit, ob du dabei bist. Danke!</p>
+    """
+    _send(email, f"Erinnerung: {event_title}", body)
