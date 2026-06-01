@@ -14,13 +14,14 @@ class Provider(Base):
 class Event(Base):
     __tablename__ = "events"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    provider_id: Mapped[int] = mapped_column(ForeignKey("providers.id"))
+    provider_id: Mapped[int] = mapped_column(ForeignKey("providers.id"), nullable=True)
     title: Mapped[str] = mapped_column(String(200))
     event_date: Mapped[datetime] = mapped_column(DateTime)
     detail_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
-    status: Mapped[str] = mapped_column(SAEnum("pending", "booked", "cancelled", name="event_status"), default="pending")
+    status: Mapped[str] = mapped_column(SAEnum("neu", "gebucht", "abgesagt", name="event_status"), default="neu")
     capacity: Mapped[int] = mapped_column(Integer, nullable=True)
+    source: Mapped[str] = mapped_column(SAEnum("scraper", "manual", name="event_source"), default="manual")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
     provider: Mapped["Provider"] = relationship(back_populates="events")
     rsvps: Mapped[list["RSVP"]] = relationship(back_populates="event", cascade="all, delete-orphan")

@@ -193,6 +193,86 @@ def register_via_invite(token: str, body: ParticipantCreate, db: Session = Depen
     send_participant_welcome(participant.name, participant.email)
     return {"message": "Erfolgreich registriert", "name": participant.name}
 
+# --- Events (manuell) ---
+
+class EventCreate(BaseModel):
+    title: str
+    event_date: str
+    capacity: int = 5
+    description: str = ""
+    detail_url: str = ""
+
+@app.post("/events", status_code=201)
+def create_event(body: EventCreate, db: Session = Depends(get_db)):
+    from datetime import datetime as dt
+    event_date = dt.fromisoformat(body.event_date)
+    event = Event(
+        title=body.title,
+        event_date=event_date,
+        capacity=body.capacity,
+        description=body.description,
+        detail_url=body.detail_url or None,
+        status="neu",
+        source="manual",
+        provider_id=1
+    )
+    db.add(event)
+    db.commit()
+    db.refresh(event)
+    return {"id": event.id, "title": event.title, "status": event.status}
+
+@app.put("/events/{event_id}")
+def update_event(event_id: int, body: EventCreate, db: Session = Depends(get_db)):
+    event = db.get(Event, event_id)
+    if not event or event.source != "manual":
+        raise HTTPException(404)
+    from datetime import datetime as dt
+    event.title = body.title
+    event.event_date = dt.fromisoformat(body.event_date)
+    event.capacity = body.capacity
+    event.description = body.description
+    event.detail_url = body.detail_url or None
+    db.commit()
+    return {"message": "Event aktualisiert"}
+
+class StatusUpdate(BaseModel):
+    status: str
+
+@app.put("/events/{event_id}/status")
+def update_event_status(event_id: int, body: StatusUpdate, db: Session = Depends(get_db)):
+    event = db.get(Event, event_id)
+    if not event or event.source != "manual":
+        raise HTTPException(404)
+    if body.status not in ("neu", "gebucht", "abgesagt"):
+        raise HTTPException(400, "Ungültiger Status")
+    event.status = body.status
+    db.commit()
+    return {"message": f"Status auf '{body.status}' gesetzt"}
+
+@app.delete("/events/{event_id}")
+def delete_event(event_id: int, db: Session = Depends(get_db)):
+    event = db.get(Event, event_id)
+    if not event or event.source != "manual":
+        raise HTTPException(404)
+    db.delete(event)
+    db.commit()
+    return {"message": "Event gelöscht"}
+
+# --- RSVP (Admin-Editing) ---
+
+@app.put("/rsvp/{rsvp_id}")
+def edit_rsvp(rsvp_id: int, response: str, companions: int = 0, db: Session = Depends(get_db)):
+    rsvp = db.get(RSVP, rsvp_id)
+    if not rsvp:
+        raise HTTPException(404)
+    if response not in ("yes", "no", "maybe", None):
+        raise HTTPException(400, "Ungültige Antwort")
+    rsvp.response = response
+    if response == "yes":
+        rsvp.companions = max(0, companions)
+    db.commit()
+    return {"message": "RSVP aktualisiert"}
+
 # --- Scheduler manuell steuern ---
 
 @app.post("/admin/scraper/run", status_code=200)

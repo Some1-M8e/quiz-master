@@ -4,15 +4,19 @@ import { api } from "../api";
 export default function Settings({ onNavigate }) {
   const [providers, setProviders] = useState([]);
   const [participants, setParticipants] = useState([]);
+  const [events, setEvents] = useState([]);
   const [newProvider, setNewProvider] = useState({ name: "", url: "" });
   const [newParticipant, setNewParticipant] = useState({ name: "", email: "" });
+  const [newEvent, setNewEvent] = useState({ title: "", event_date: "", capacity: 5, description: "", detail_url: "" });
   const [prüfMsg, setPrüfMsg] = useState("");
   const [inviteLink, setInviteLink] = useState("");
   const [copied, setCopied] = useState(false);
+  const [editingEventId, setEditingEventId] = useState(null);
 
   const loadAll = () => {
     api.get("/providers").then(setProviders);
     api.get("/participants").then(setParticipants);
+    api.get("/events").then(setEvents);
   };
 
   useEffect(() => { loadAll(); }, []);
@@ -28,6 +32,31 @@ export default function Settings({ onNavigate }) {
     if (!newParticipant.name || !newParticipant.email) return;
     await api.post("/participants", newParticipant);
     setNewParticipant({ name: "", email: "" });
+    loadAll();
+  };
+
+  const createEvent = async () => {
+    if (!newEvent.title || !newEvent.event_date) return;
+    await api.post("/events", newEvent);
+    setNewEvent({ title: "", event_date: "", capacity: 5, description: "", detail_url: "" });
+    loadAll();
+  };
+
+  const updateEvent = async (id) => {
+    const event = events.find(e => e.id === id);
+    if (!event) return;
+    await api.put(`/events/${id}`, event);
+    setEditingEventId(null);
+    loadAll();
+  };
+
+  const deleteEvent = async (id) => {
+    await api.delete(`/events/${id}`);
+    loadAll();
+  };
+
+  const updateEventStatus = async (id, status) => {
+    await api.put(`/events/${id}/status`, null, { status });
     loadAll();
   };
 
@@ -71,6 +100,42 @@ export default function Settings({ onNavigate }) {
           { placeholder: "Name", value: newParticipant.name, onChange: (v) => setNewParticipant({ ...newParticipant, name: v }) },
           { placeholder: "E-Mail", value: newParticipant.email, onChange: (v) => setNewParticipant({ ...newParticipant, email: v }) },
         ]} onAdd={addParticipant} />
+      </Section>
+
+      <Section title="Events (manuell erstellen)">
+        {events.filter(e => e.source === "manual").map((e) => (
+          <div key={e.id} style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "0.75rem", marginBottom: "0.75rem" }}>
+            {editingEventId === e.id ? (
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                <input placeholder="Titel" value={e.title} onChange={(v) => setEvents(events.map(x => x.id === e.id ? {...x, title: v} : x))} style={{ flex: 1, minWidth: 120, padding: "0.4rem" }} />
+                <input type="datetime-local" value={e.event_date.slice(0, 16)} onChange={(v) => setEvents(events.map(x => x.id === e.id ? {...x, event_date: v + ":00"} : x))} style={{ flex: 1, minWidth: 150, padding: "0.4rem" }} />
+                <input type="number" placeholder="Kapazität" value={e.capacity} onChange={(v) => setEvents(events.map(x => x.id === e.id ? {...x, capacity: parseInt(v)} : x))} style={{ width: 80, padding: "0.4rem" }} />
+                <button onClick={() => updateEvent(e.id)} style={{ padding: "0.4rem 0.8rem", background: "#22c55e", color: "white", border: "none", borderRadius: 4, cursor: "pointer" }}>Speichern</button>
+                <button onClick={() => setEditingEventId(null)} style={{ padding: "0.4rem 0.8rem", background: "#e5e7eb", border: "none", borderRadius: 4, cursor: "pointer" }}>Abbrechen</button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <strong>{e.title}</strong>
+                  <div style={{ color: "#6b7280", fontSize: "0.85rem" }}>{new Date(e.event_date).toLocaleDateString("de-DE")}</div>
+                </div>
+                <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+                  <select value={e.status} onChange={(v) => updateEventStatus(e.id, v.target.value)} style={{ padding: "0.4rem", borderRadius: 4, border: "1px solid #d1d5db" }}>
+                    <option value="neu">Neu</option>
+                    <option value="gebucht">Gebucht</option>
+                    <option value="abgesagt">Abgesagt</option>
+                  </select>
+                  <button onClick={() => setEditingEventId(e.id)} style={{ background: "none", border: "none", color: "#6366f1", cursor: "pointer", fontSize: "0.9rem" }}>Bearbeiten</button>
+                  <button onClick={() => deleteEvent(e.id)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "1.2rem" }}>×</button>
+                </div>
+              </div>
+            )}
+          </div>
+        ))}
+        <AddRow fields={[
+          { placeholder: "Titel", value: newEvent.title, onChange: (v) => setNewEvent({ ...newEvent, title: v }) },
+          { placeholder: "Datum & Zeit", value: newEvent.event_date, onChange: (v) => setNewEvent({ ...newEvent, event_date: v }) },
+        ]} onAdd={createEvent} />
       </Section>
 
       <Section title="Einladungslink">

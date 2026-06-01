@@ -64,7 +64,7 @@ def job_booking_logic():
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
-        pending_events = db.query(Event).filter_by(status="pending").all()
+        pending_events = db.query(Event).filter_by(status="neu").filter_by(source="scraper").all()
         for event in pending_events:
             success = asyncio.run(booking_module.book_event(
                 detail_url=event.detail_url or event.provider.url,
@@ -72,7 +72,7 @@ def job_booking_logic():
                 event_title=event.title,
             ))
             if success:
-                event.status = "booked"
+                event.status = "gebucht"
                 event.capacity = CAPACITY
                 db.commit()
                 for rsvp in event.rsvps:
@@ -80,7 +80,7 @@ def job_booking_logic():
                         send_booking_confirmation(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"), event_description=event.description or "", response=rsvp.response)
                 logger.info(f"Termin gebucht: {event.title}")
 
-        booked_events = db.query(Event).filter_by(status="booked").all()
+        booked_events = db.query(Event).filter_by(status="gebucht").all()
         for event in booked_events:
             event_date = event.event_date.replace(tzinfo=timezone.utc) if event.event_date.tzinfo is None else event.event_date
             days_until = (event_date - now).days
@@ -103,7 +103,7 @@ def job_booking_logic():
                     event_title=event.title,
                 ))
                 if success:
-                    event.status = "cancelled"
+                    event.status = "abgesagt"
                     db.commit()
                     for rsvp in event.rsvps:
                         if rsvp.response in ("yes", "maybe"):
@@ -117,7 +117,7 @@ def job_reminders():
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
-        booked_events = db.query(Event).filter_by(status="booked").all()
+        booked_events = db.query(Event).filter_by(status="gebucht").all()
         for event in booked_events:
             event_date = event.event_date.replace(tzinfo=timezone.utc) if event.event_date.tzinfo is None else event.event_date
             days_until = (event_date - now).days
@@ -133,7 +133,7 @@ def job_maybe_reminders():
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
-        booked_events = db.query(Event).filter_by(status="booked").all()
+        booked_events = db.query(Event).filter_by(status="gebucht").all()
         for event in booked_events:
             event_date = event.event_date.replace(tzinfo=timezone.utc) if event.event_date.tzinfo is None else event.event_date
             days_until = (event_date - now).days
@@ -168,7 +168,7 @@ def job_weekly_reminder():
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
-        booked_events = db.query(Event).filter_by(status="booked").all()
+        booked_events = db.query(Event).filter_by(status="gebucht").all()
         for event in booked_events:
             for rsvp in event.rsvps:
                 if rsvp.response in (None, "maybe") and rsvp.response != "no":
