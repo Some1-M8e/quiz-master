@@ -7,6 +7,8 @@ export default function Settings({ onNavigate }) {
   const [newProvider, setNewProvider] = useState({ name: "", url: "" });
   const [newParticipant, setNewParticipant] = useState({ name: "", email: "" });
   const [prüfMsg, setPrüfMsg] = useState("");
+  const [inviteLink, setInviteLink] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const loadAll = () => {
     api.get("/providers").then(setProviders);
@@ -27,6 +29,18 @@ export default function Settings({ onNavigate }) {
     await api.post("/participants", newParticipant);
     setNewParticipant({ name: "", email: "" });
     loadAll();
+  };
+
+  const generateInvite = async () => {
+    const res = await api.post("/admin/invite", {});
+    const link = `${window.location.origin}/register/${res.token}`;
+    setInviteLink(link);
+    setCopied(false);
+  };
+
+  const copyLink = () => {
+    navigator.clipboard.writeText(inviteLink);
+    setCopied(true);
   };
 
   const runScraper = async () => {
@@ -57,6 +71,24 @@ export default function Settings({ onNavigate }) {
           { placeholder: "Name", value: newParticipant.name, onChange: (v) => setNewParticipant({ ...newParticipant, name: v }) },
           { placeholder: "E-Mail", value: newParticipant.email, onChange: (v) => setNewParticipant({ ...newParticipant, email: v }) },
         ]} onAdd={addParticipant} />
+      </Section>
+
+      <Section title="Einladungslink">
+        <p style={{ color: "#6b7280", fontSize: "0.9rem", margin: "0 0 0.75rem 0" }}>
+          Generiere einen Link, den du teilen kannst. Wer ihn öffnet, kann sich selbst eintragen.
+          Ein neuer Link macht den alten ungültig.
+        </p>
+        <button onClick={generateInvite} style={{ padding: "0.6rem 1.2rem", background: "#6366f1", color: "white", border: "none", borderRadius: 8, cursor: "pointer" }}>
+          Neuen Einladungslink generieren
+        </button>
+        {inviteLink && (
+          <div style={{ marginTop: "0.75rem", display: "flex", gap: "0.5rem", alignItems: "center", flexWrap: "wrap" }}>
+            <input readOnly value={inviteLink} style={{ flex: 1, padding: "0.4rem 0.6rem", border: "1px solid #d1d5db", borderRadius: 6, fontSize: "0.85rem", minWidth: 0 }} />
+            <button onClick={copyLink} style={{ padding: "0.4rem 0.8rem", background: copied ? "#22c55e" : "#e5e7eb", color: copied ? "white" : "#374151", border: "none", borderRadius: 6, cursor: "pointer", whiteSpace: "nowrap" }}>
+              {copied ? "Kopiert!" : "Kopieren"}
+            </button>
+          </div>
+        )}
       </Section>
 
       <Section title="Aktionen">

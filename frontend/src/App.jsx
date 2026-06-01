@@ -2,6 +2,7 @@ import { useState } from "react";
 import EventList from "./pages/EventList";
 import EventDetail from "./pages/EventDetail";
 import RsvpPage from "./pages/RsvpPage";
+import RegisterPage from "./pages/RegisterPage";
 import Settings from "./pages/Settings";
 
 export default function App() {
@@ -10,6 +11,11 @@ export default function App() {
   if (path.startsWith("/rsvp/")) {
     const token = path.split("/")[2];
     return <RsvpPage token={token} />;
+  }
+
+  if (path.startsWith("/register/")) {
+    const token = path.split("/")[2];
+    return <RegisterPage token={token} />;
   }
 
   const [page, setPage] = useState("events");

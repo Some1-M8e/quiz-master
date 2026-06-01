@@ -31,6 +31,12 @@ class Participant(Base):
     email: Mapped[str] = mapped_column(String(200), unique=True)
     rsvps: Mapped[list["RSVP"]] = relationship(back_populates="participant")
 
+class InviteToken(Base):
+    __tablename__ = "invite_tokens"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True, default=lambda: secrets.token_urlsafe(32))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+
 class RSVP(Base):
     __tablename__ = "rsvps"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

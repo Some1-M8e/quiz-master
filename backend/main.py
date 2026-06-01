@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db, init_db
-from models import Provider, Event, Participant, RSVP
+from models import Provider, Event, Participant, RSVP, InviteToken
 from email_service import send_rsvp_confirmation, send_participant_welcome, send_participant_removed
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -159,6 +159,38 @@ def rsvp_page_data(token: str, db: Session = Depends(get_db)):
         "companions": rsvp.companions,
         "token": token,
     }
+
+# --- Einladungslink ---
+
+@app.post("/admin/invite", status_code=201)
+def generate_invite(db: Session = Depends(get_db)):
+    db.query(InviteToken).delete()
+    t = InviteToken()
+    db.add(t)
+    db.commit()
+    return {"token": t.token}
+
+@app.get("/invite/{token}")
+def validate_invite(token: str, db: Session = Depends(get_db)):
+    t = db.query(InviteToken).filter_by(token=token).first()
+    if not t:
+        raise HTTPException(404, "Link ungültig oder abgelaufen")
+    return {"valid": True}
+
+@app.post("/invite/{token}", status_code=201)
+def register_via_invite(token: str, body: ParticipantCreate, db: Session = Depends(get_db)):
+    t = db.query(InviteToken).filter_by(token=token).first()
+    if not t:
+        raise HTTPException(404, "Link ungültig oder abgelaufen")
+    existing = db.query(Participant).filter_by(email=body.email).first()
+    if existing:
+        raise HTTPException(409, "E-Mail bereits registriert")
+    participant = Participant(name=body.name, email=body.email)
+    db.add(participant)
+    db.commit()
+    db.refresh(participant)
+    send_participant_welcome(participant.name, participant.email)
+    return {"message": "Erfolgreich registriert", "name": participant.name}
 
 # --- Scheduler manuell steuern ---
 
