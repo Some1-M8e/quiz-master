@@ -21,7 +21,7 @@ export default function App() {
   };
 
   return (
-    <div style={{ maxWidth: 800, margin: "0 auto", padding: "1rem", fontFamily: "sans-serif" }}>
+    <div style={{ maxWidth: 820, margin: "0 auto", padding: "1.5rem 2rem", fontFamily: "sans-serif", background: "white", borderRadius: 16, boxShadow: "0 24px 64px rgba(0,0,0,0.45)" }}>
       <header style={{ display: "flex", gap: "1rem", borderBottom: "2px solid #e5e7eb", paddingBottom: "0.5rem", marginBottom: "1.5rem" }}>
         <h2 style={{ margin: 0, flex: 1 }}>Quiz-Master</h2>
         <button onClick={() => nav("events")} style={btnStyle(page === "events")}>Termine</button>
@@ -29,7 +29,7 @@ export default function App() {
       </header>
       {page === "events" && !selectedEvent && <EventList onSelect={(e) => nav("detail", e)} />}
       {page === "detail" && selectedEvent && <EventDetail event={selectedEvent} onBack={() => nav("events")} />}
-      {page === "settings" && <Settings />}
+      {page === "settings" && <Settings onNavigate={(p) => nav(p)} />}
     </div>
   );
 }

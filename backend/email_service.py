@@ -6,6 +6,39 @@ from config import settings
 
 logger = logging.getLogger(__name__)
 
+
+def _quiz_category(title: str) -> str | None:
+    t = title.lower()
+    if "verquizmeinnicht" in t or "verquiz meinnicht" in t:
+        return "Allgemeinwissensquiz"
+    if "quiz quiz bang bang" in t:
+        return "Filme- und Serien-Quiz"
+    return None
+
+
+def _event_info_block(event_title: str, event_date: str, event_description: str) -> str:
+    category = _quiz_category(event_title)
+    category_html = ""
+    if category:
+        category_html = (
+            f'<p style="margin:0 0 8px 0;">'
+            f'<span style="background:#6366f1;color:white;padding:3px 10px;border-radius:12px;font-size:0.85rem;">'
+            f'{category}</span></p>'
+        )
+    desc_html = ""
+    if event_description:
+        desc_html = f'<p style="margin:8px 0 0 0;color:#374151;">{event_description}</p>'
+
+    return f"""
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:16px 0;">
+        {category_html}
+        <p style="margin:0;font-size:1.05rem;"><strong>{event_title}</strong></p>
+        <p style="margin:4px 0 0 0;color:#6b7280;">{event_date}</p>
+        {desc_html}
+    </div>
+    """
+
+
 def _send(to: str, subject: str, body_html: str):
     if settings.email_dry_run:
         logger.info(f"[DRY-RUN] E-Mail an {to} | Betreff: {subject}\n{body_html}")
@@ -20,15 +53,22 @@ def _send(to: str, subject: str, body_html: str):
         server.login(settings.smtp_user, settings.smtp_password)
         server.sendmail(settings.smtp_user, to, msg.as_string())
 
-def send_invitation(participant_name: str, email: str, event_title: str, event_date: str, token: str):
+
+def send_invitation(participant_name: str, email: str, event_title: str, event_date: str, token: str, event_description: str = ""):
     rsvp_yes = f"{settings.app_url}/rsvp/{token}/yes"
+    rsvp_maybe = f"{settings.app_url}/rsvp/{token}/maybe"
     rsvp_no = f"{settings.app_url}/rsvp/{token}/no"
     app_link = f"{settings.app_url}/rsvp/{token}"
+    info = _event_info_block(event_title, event_date, event_description)
     body = f"""
     <p>Hallo {participant_name},</p>
-    <p>es gibt einen neuen Quiz-Abend-Termin: <strong>{event_title}</strong> am <strong>{event_date}</strong>.</p>
+    <p>es gibt einen neuen Quiz-Abend-Termin:</p>
+    {info}
+    <p>Bist du dabei?</p>
     <p>
         <a href="{rsvp_yes}" style="padding:8px 16px;background:#22c55e;color:white;text-decoration:none;border-radius:4px;">Zusagen</a>
+        &nbsp;&nbsp;
+        <a href="{rsvp_maybe}" style="padding:8px 16px;background:#f59e0b;color:white;text-decoration:none;border-radius:4px;">Vielleicht</a>
         &nbsp;&nbsp;
         <a href="{rsvp_no}" style="padding:8px 16px;background:#ef4444;color:white;text-decoration:none;border-radius:4px;">Absagen</a>
     </p>
@@ -36,32 +76,69 @@ def send_invitation(participant_name: str, email: str, event_title: str, event_d
     """
     _send(email, f"Neuer Quiz-Abend: {event_title}", body)
 
-def send_rsvp_confirmation(participant_name: str, email: str, event_title: str, event_date: str):
-    body = f"""
-    <p>Hallo {participant_name},</p>
-    <p>deine Zusage für <strong>{event_title}</strong> am <strong>{event_date}</strong> wurde aufgenommen.</p>
-    <p>Wir melden uns, sobald der Termin gebucht wurde.</p>
-    """
-    _send(email, f"Zusage bestätigt: {event_title}", body)
 
-def send_booking_confirmation(participant_name: str, email: str, event_title: str, event_date: str):
+def send_rsvp_confirmation(participant_name: str, email: str, event_title: str, event_date: str, event_description: str = "", response: str = "yes"):
+    info = _event_info_block(event_title, event_date, event_description)
+    if response == "maybe":
+        intro = "dein 'Vielleicht' wurde aufgenommen:"
+        outro = "Sag uns gerne noch Bescheid, sobald du weißt ob du dabei bist."
+        subject = f"Vielleicht dabei: {event_title}"
+    else:
+        intro = "deine Zusage wurde aufgenommen:"
+        outro = "Wir melden uns, sobald der Termin gebucht wurde."
+        subject = f"Zusage bestätigt: {event_title}"
     body = f"""
     <p>Hallo {participant_name},</p>
-    <p>der Termin <strong>{event_title}</strong> am <strong>{event_date}</strong> wurde erfolgreich gebucht. Wir sind dabei!</p>
+    <p>{intro}</p>
+    {info}
+    <p>{outro}</p>
+    """
+    _send(email, subject, body)
+
+
+def send_booking_confirmation(participant_name: str, email: str, event_title: str, event_date: str, event_description: str = ""):
+    info = _event_info_block(event_title, event_date, event_description)
+    body = f"""
+    <p>Hallo {participant_name},</p>
+    <p>der folgende Termin wurde erfolgreich gebucht — wir sind dabei!</p>
+    {info}
     """
     _send(email, f"Termin gebucht: {event_title}", body)
 
-def send_cancellation(participant_name: str, email: str, event_title: str, event_date: str):
+
+def send_cancellation(participant_name: str, email: str, event_title: str, event_date: str, event_description: str = ""):
+    info = _event_info_block(event_title, event_date, event_description)
     body = f"""
     <p>Hallo {participant_name},</p>
-    <p>leider musste der Termin <strong>{event_title}</strong> am <strong>{event_date}</strong> storniert werden,
-    da nicht genügend Teilnehmer zugesagt haben.</p>
+    <p>leider musste der folgende Termin storniert werden, da nicht genügend Teilnehmer zugesagt haben:</p>
+    {info}
     """
     _send(email, f"Termin storniert: {event_title}", body)
 
-def send_reminder(participant_name: str, email: str, event_title: str, event_date: str):
+
+def send_participant_welcome(name: str, email: str):
+    body = f"""
+    <p>Hallo {name},</p>
+    <p>du wurdest in die Liste der <strong>Quiz-Interessierten</strong> eingetragen und wirst ab sofort über neue Quiz-Abende benachrichtigt.</p>
+    <p>Sobald ein neuer Termin gefunden wird, bekommst du eine E-Mail mit allen Details und kannst direkt zu- oder absagen.</p>
+    """
+    _send(email, "Du bist jetzt bei Quiz-Master dabei!", body)
+
+
+def send_participant_removed(name: str, email: str):
+    body = f"""
+    <p>Hallo {name},</p>
+    <p>du wurdest aus der Liste der Quiz-Interessierten entfernt und erhältst keine weiteren Benachrichtigungen mehr.</p>
+    """
+    _send(email, "Du wurdest aus Quiz-Master entfernt", body)
+
+
+def send_reminder(participant_name: str, email: str, event_title: str, event_date: str, event_description: str = ""):
+    info = _event_info_block(event_title, event_date, event_description)
     body = f"""
     <p>Hallo {participant_name},</p>
-    <p>Erinnerung: <strong>{event_title}</strong> findet am <strong>{event_date}</strong> statt. Wir sehen uns!</p>
+    <p>Erinnerung: Morgen ist es so weit!</p>
+    {info}
+    <p>Wir sehen uns!</p>
     """
     _send(email, f"Erinnerung: {event_title} steht an!", body)

@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db, init_db
 from models import Provider, Event, Participant, RSVP
-from email_service import send_rsvp_confirmation
+from email_service import send_rsvp_confirmation, send_participant_welcome, send_participant_removed
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
@@ -17,7 +17,7 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(title="Quiz-Master", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173"], allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://localhost:5174"], allow_methods=["*"], allow_headers=["*"])
 
 # --- Schemas ---
 
@@ -66,6 +66,7 @@ def create_participant(body: ParticipantCreate, db: Session = Depends(get_db)):
     db.add(participant)
     db.commit()
     db.refresh(participant)
+    send_participant_welcome(participant.name, participant.email)
     return participant
 
 @app.delete("/participants/{participant_id}", status_code=204)
@@ -73,8 +74,10 @@ def delete_participant(participant_id: int, db: Session = Depends(get_db)):
     participant = db.get(Participant, participant_id)
     if not participant:
         raise HTTPException(404)
+    name, email = participant.name, participant.email
     db.delete(participant)
     db.commit()
+    send_participant_removed(name, email)
 
 # --- Events ---
 
@@ -115,6 +118,7 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
         "event_date": event.event_date.isoformat(),
         "status": event.status,
         "total_attendees": total,
+        "detail_url": event.detail_url,
         "rsvps": rsvps,
     }
 
@@ -122,7 +126,7 @@ def get_event(event_id: int, db: Session = Depends(get_db)):
 
 @app.get("/rsvp/{token}/{response}")
 def rsvp_via_link(token: str, response: str, companions: int = 0, db: Session = Depends(get_db)):
-    if response not in ("yes", "no"):
+    if response not in ("yes", "no", "maybe"):
         raise HTTPException(400, "Ungültige Antwort")
     rsvp = db.query(RSVP).filter_by(token=token).first()
     if not rsvp:
@@ -131,12 +135,14 @@ def rsvp_via_link(token: str, response: str, companions: int = 0, db: Session = 
     if response == "yes":
         rsvp.companions = max(0, companions)
     db.commit()
-    if response == "yes":
+    if response in ("yes", "maybe"):
         send_rsvp_confirmation(
             participant_name=rsvp.participant.name,
             email=rsvp.participant.email,
             event_title=rsvp.event.title,
             event_date=rsvp.event.event_date.strftime("%d.%m.%Y"),
+            event_description=rsvp.event.description or "",
+            response=response,
         )
     return {"message": "Antwort gespeichert", "response": response}
 

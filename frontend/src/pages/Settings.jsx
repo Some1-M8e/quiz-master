@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 
-export default function Settings() {
+export default function Settings({ onNavigate }) {
   const [providers, setProviders] = useState([]);
   const [participants, setParticipants] = useState([]);
   const [newProvider, setNewProvider] = useState({ name: "", url: "" });
   const [newParticipant, setNewParticipant] = useState({ name: "", email: "" });
-  const [scraperMsg, setScraperMsg] = useState("");
+  const [prüfMsg, setPrüfMsg] = useState("");
 
   const loadAll = () => {
     api.get("/providers").then(setProviders);
@@ -30,10 +30,11 @@ export default function Settings() {
   };
 
   const runScraper = async () => {
-    setScraperMsg("Läuft...");
+    setPrüfMsg("Wird geprüft...");
     await api.post("/admin/scraper/run", {});
-    setScraperMsg("Fertig! Neue Termine wurden geprüft.");
+    setPrüfMsg("Fertig! Neue Termine wurden geprüft.");
     loadAll();
+    setTimeout(() => onNavigate("events"), 2000);
   };
 
   return (
@@ -48,7 +49,7 @@ export default function Settings() {
         ]} onAdd={addProvider} />
       </Section>
 
-      <Section title="Teilnehmer">
+      <Section title="Quiz-Interessierte">
         {participants.map((p) => (
           <Row key={p.id} label={p.name} sub={p.email} onDelete={() => api.delete(`/participants/${p.id}`).then(loadAll)} />
         ))}
@@ -60,9 +61,9 @@ export default function Settings() {
 
       <Section title="Aktionen">
         <button onClick={runScraper} style={{ padding: "0.6rem 1.2rem", background: "#6366f1", color: "white", border: "none", borderRadius: 8, cursor: "pointer" }}>
-          Scraper jetzt ausführen
+          Websites jetzt auf neue Termine prüfen
         </button>
-        {scraperMsg && <p style={{ color: "#22c55e", marginTop: 8 }}>{scraperMsg}</p>}
+        {prüfMsg && <p style={{ color: "#22c55e", marginTop: 8 }}>{prüfMsg}</p>}
       </Section>
     </div>
   );
@@ -78,10 +79,21 @@ function Section({ title, children }) {
 }
 
 function Row({ label, sub, onDelete }) {
+  const [confirming, setConfirming] = useState(false);
   return (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "0.5rem 0", borderBottom: "1px solid #f3f4f6" }}>
       <div><strong>{label}</strong><div style={{ color: "#6b7280", fontSize: "0.85rem" }}>{sub}</div></div>
-      <button onClick={onDelete} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "1.2rem" }}>×</button>
+      {confirming ? (
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <span style={{ fontSize: "0.85rem", color: "#374151" }}>Wirklich löschen?</span>
+          <button onClick={() => { onDelete(); setConfirming(false); }}
+            style={{ background: "#ef4444", color: "white", border: "none", borderRadius: 4, padding: "3px 10px", cursor: "pointer", fontSize: "0.85rem" }}>Ja</button>
+          <button onClick={() => setConfirming(false)}
+            style={{ background: "#e5e7eb", color: "#374151", border: "none", borderRadius: 4, padding: "3px 10px", cursor: "pointer", fontSize: "0.85rem" }}>Nein</button>
+        </div>
+      ) : (
+        <button onClick={() => setConfirming(true)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: "1.2rem" }}>×</button>
+      )}
     </div>
   );
 }

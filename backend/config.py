@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     app_url: str = "http://localhost:8000"
     secret_key: str = "change-me"
     database_url: str = "sqlite:///./quiz_master.db"
+    organizer_name: str = "Quiz-Master"
+    organizer_email: str = ""
+    organizer_phone: str = ""
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

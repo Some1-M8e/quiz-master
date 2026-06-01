@@ -39,16 +39,16 @@ def job_booking_logic():
             should_book = total >= MIN_PARTICIPANTS or age_days >= BOOKING_DEADLINE_DAYS
             if should_book:
                 success = asyncio.run(booking_module.book_event(
-                    event_title=event.title,
+                    detail_url=event.detail_url or event.provider.url,
                     event_date=event.event_date,
-                    booking_url=event.provider.url,
+                    event_title=event.title,
                 ))
                 if success:
                     event.status = "booked"
                     db.commit()
                     for rsvp in event.rsvps:
                         if rsvp.response == "yes":
-                            send_booking_confirmation(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"))
+                            send_booking_confirmation(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"), event_description=event.description or "")
                     logger.info(f"Termin gebucht: {event.title}")
 
         booked_events = db.query(Event).filter_by(status="booked").all()
@@ -57,16 +57,16 @@ def job_booking_logic():
             days_until = (event_date - now).days
             if days_until <= CANCELLATION_DAYS_BEFORE and _total_attendees(event) < MIN_PARTICIPANTS:
                 success = asyncio.run(booking_module.cancel_booking(
-                    event_title=event.title,
+                    detail_url=event.detail_url or event.provider.url,
                     event_date=event.event_date,
-                    booking_url=event.provider.url,
+                    event_title=event.title,
                 ))
                 if success:
                     event.status = "cancelled"
                     db.commit()
                     for rsvp in event.rsvps:
                         if rsvp.response == "yes":
-                            send_cancellation(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"))
+                            send_cancellation(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"), event_description=event.description or "")
                     logger.info(f"Termin storniert: {event.title}")
     finally:
         db.close()
@@ -83,7 +83,7 @@ def job_reminders():
             if days_until == 1:
                 for rsvp in event.rsvps:
                     if rsvp.response == "yes":
-                        send_reminder(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"))
+                        send_reminder(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"), event_description=event.description or "")
     finally:
         db.close()
 

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
+import { displayTitle } from "../utils";
 
 export default function EventDetail({ event, onBack }) {
   const [detail, setDetail] = useState(null);
@@ -11,17 +12,27 @@ export default function EventDetail({ event, onBack }) {
   if (!detail) return <p>Lade...</p>;
 
   const yes = detail.rsvps.filter((r) => r.response === "yes");
+  const maybe = detail.rsvps.filter((r) => r.response === "maybe");
   const no = detail.rsvps.filter((r) => r.response === "no");
   const pending = detail.rsvps.filter((r) => !r.response);
 
   return (
     <div>
       <button onClick={onBack} style={{ marginBottom: "1rem", background: "none", border: "none", cursor: "pointer", color: "#6366f1" }}>← Zurück</button>
-      <h3>{detail.title}</h3>
+      <h3>{displayTitle(detail.title)}</h3>
       <p style={{ color: "#6b7280" }}>{new Date(detail.event_date).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
-      <p><strong>Gesamt Teilnehmer:</strong> {detail.total_attendees}</p>
+      {detail.detail_url && (
+        <p style={{ marginTop: "0.4rem" }}>
+          <a href={detail.detail_url} target="_blank" rel="noopener noreferrer"
+            style={{ color: "#6366f1", fontSize: "0.9rem", textDecoration: "none" }}>
+            Veranstaltung bei Pension Schmidt ansehen →
+          </a>
+        </p>
+      )}
+      <p style={{ marginTop: "0.75rem" }}><strong>Gesamt Teilnehmer:</strong> {detail.total_attendees}</p>
 
       <Section title="Zugesagt" color="#22c55e" items={yes} showCompanions />
+      <Section title="Vielleicht" color="#f59e0b" items={maybe} />
       <Section title="Abgesagt" color="#ef4444" items={no} />
       <Section title="Ausstehend" color="#9ca3af" items={pending} />
     </div>

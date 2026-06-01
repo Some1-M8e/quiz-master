@@ -17,12 +17,20 @@ export default function RsvpPage({ token }) {
   };
 
   if (!data) return <p style={{ padding: "2rem" }}>Lade...</p>;
-  if (done) return (
-    <div style={{ padding: "2rem", textAlign: "center" }}>
-      <h2>{done === "yes" ? "Zusage gespeichert!" : "Absage gespeichert."}</h2>
-      <p>{done === "yes" ? "Wir freuen uns auf dich!" : "Schade, vielleicht beim nächsten Mal."}</p>
-    </div>
-  );
+  if (done) {
+    const messages = {
+      yes: { title: "Zusage gespeichert!", text: "Wir freuen uns auf dich!" },
+      maybe: { title: "Vielleicht gespeichert.", text: "Sag uns gerne Bescheid, sobald du es weißt." },
+      no: { title: "Absage gespeichert.", text: "Schade, vielleicht beim nächsten Mal." },
+    };
+    const m = messages[done];
+    return (
+      <div style={{ padding: "2rem", textAlign: "center" }}>
+        <h2>{m.title}</h2>
+        <p>{m.text}</p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ maxWidth: 500, margin: "2rem auto", padding: "1.5rem", fontFamily: "sans-serif", border: "1px solid #e5e7eb", borderRadius: 12 }}>
@@ -44,6 +52,10 @@ export default function RsvpPage({ token }) {
         <button onClick={() => respond("yes")}
           style={{ flex: 1, padding: "0.75rem", background: "#22c55e", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}>
           Zusagen
+        </button>
+        <button onClick={() => respond("maybe")}
+          style={{ flex: 1, padding: "0.75rem", background: "#f59e0b", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}>
+          Vielleicht
         </button>
         <button onClick={() => respond("no")}
           style={{ flex: 1, padding: "0.75rem", background: "#ef4444", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: "1rem", fontWeight: "bold" }}>
