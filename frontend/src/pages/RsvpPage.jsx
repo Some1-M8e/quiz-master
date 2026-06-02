@@ -83,6 +83,12 @@ export default function RsvpPage({ token }) {
           Ab einer Woche vor der Veranstaltung müssen Sie sich definitiv anmelden oder absagen.
         </p>
       )}
+      <p style={{ marginTop: "2rem", paddingTop: "1rem", borderTop: "1px solid #e5e7eb", fontSize: "0.85rem", color: "#9ca3af" }}>
+        Du erhältst diese E-Mail weil du als Quiz-Interessierter eingetragen bist.{" "}
+        <a href={`http://localhost:8000/unsubscribe/${encodeURIComponent(data.participant_email || "")}`} style={{ color: "#6366f1" }}>
+          Benachrichtigungen abbestellen
+        </a>
+      </p>
     </div>
   );
 }

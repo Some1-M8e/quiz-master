@@ -39,10 +39,16 @@ def _event_info_block(event_title: str, event_date: str, event_description: str)
     """
 
 
-def _send(to: str, subject: str, body_html: str):
+def _send(to: str, subject: str, body_html: str, include_unsubscribe: bool = True):
     if settings.email_dry_run:
         logger.info(f"[DRY-RUN] E-Mail an {to} | Betreff: {subject}\n{body_html}")
         return
+    if include_unsubscribe:
+        # Unsubscribe-Link hinzufügen
+        unsubscribe_link = f"{settings.app_url}/unsubscribe/{to}"
+        body_html += f'<p style="margin-top:2rem;padding-top:1rem;border-top:1px solid #e5e7eb;font-size:0.8rem;color:#9ca3af;">' \
+                     f'Du erhältst diese E-Mail weil du als Quiz-Interessierter eingetragen bist. ' \
+                     f'<a href="{unsubscribe_link}">Benachrichtigungen abbestellen</a>.</p>'
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = settings.smtp_user

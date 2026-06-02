@@ -1,4 +1,3 @@
-import asyncio
 import logging
 import httpx
 from urllib.parse import urljoin
@@ -74,10 +73,9 @@ def scrape_provider(provider: Provider, db: Session) -> list[dict]:
 
         title = title_el.get_text(strip=True) if title_el else time_el.get_text(strip=True)
 
-        # Nur bekannte Quiz-Typen verarbeiten
-        from email_service import _quiz_category
-        if not _quiz_category(title):
-            logger.info(f"Event '{title}' ist kein bekannter Quiz-Typ — übersprungen")
+        # Nur bestimmte Quiz-Typen verarbeiten
+        if title not in ("Quiz Quiz Bang Bang", "VerQUIZmeinnicht"):
+            logger.info(f"Event '{title}' wird ignoriert — nicht im Ziel-Filter")
             continue
 
         desc_el = event_el.find(class_=lambda c: c and (
@@ -95,19 +93,17 @@ def scrape_provider(provider: Provider, db: Session) -> list[dict]:
             logger.warning(f"Kein Detail-Link für Event am {date.strftime('%d.%m.%Y')} — übersprungen")
             continue
 
-        # Buchbarkeitsprüfung: Sind 19:00–19:30 Plätze für 4 Personen frei?
+        # Buchbarkeitsprüfung nur für die 2 Ziel-Events
         from booking import check_bookable
         try:
             is_bookable = asyncio.run(check_bookable(detail_url, date))
         except Exception as e:
-            logger.error(f"Buchbarkeitsprüfung fehlgeschlagen ({detail_url}): {e}")
-            continue
+            logger.warning(f"Buchbarkeitsprüfung fehlgeschlagen ({detail_url}): {e}")
+            is_bookable = False
 
-        if not is_bookable:
-            logger.info(f"Event am {date.strftime('%d.%m.%Y')} nicht buchbar — übersprungen")
-            continue
-
-        found_events.append({"title": title, "date": date, "detail_url": detail_url, "description": description})
+        event_status = "pending" if is_bookable else "ausverkauft"
+        logger.info(f"Event '{title}' am {date.strftime('%d.%m.')}: {'buchbar' if is_bookable else 'ausverkauft'}")
+        found_events.append({"title": title, "date": date, "detail_url": detail_url, "description": description, "status": event_status})
 
     return found_events
 
@@ -127,13 +123,15 @@ def run_scraper(db: Session):
                 event_date=ev["date"],
                 detail_url=ev["detail_url"],
                 description=ev.get("description") or None,
-                status="pending",
+                status=ev["status"],
                 created_at=datetime.now(timezone.utc),
             )
             db.add(event)
             db.flush()
-            participants = db.query(Participant).all()
+            participants = db.query(Participant).filter_by(notifications_enabled=True).all()
             for p in participants:
+                if not p.email:
+                    continue  # Keine E-Mail, keine Einladung
                 rsvp = RSVP(event_id=event.id, participant_id=p.id)
                 db.add(rsvp)
                 db.flush()

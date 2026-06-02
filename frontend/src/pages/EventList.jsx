@@ -2,17 +2,21 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { displayTitle } from "../utils";
 
-const STATUS_LABEL = { pending: "Offen", booked: "Gebucht", cancelled: "Storniert" };
-const STATUS_COLOR = { pending: "#f59e0b", booked: "#22c55e", cancelled: "#ef4444" };
+const STATUS_LABEL = { pending: "Offen", booked: "Gebucht", cancelled: "Storniert", ausverkauft: "Ausverkauft" };
+const STATUS_COLOR = { pending: "#f59e0b", booked: "#22c55e", cancelled: "#ef4444", ausverkauft: "#6b7280" };
 
 export default function EventList({ onSelect }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [lastRun, setLastRun] = useState("");
   const [form, setForm] = useState({ name: "", email: "" });
   const [subscribeState, setSubscribeState] = useState("idle"); // idle | loading | success | error
 
   useEffect(() => {
-    api.get("/events").then((data) => { setEvents(data); setLoading(false); });
+    Promise.all([
+      api.get("/events").then((data) => { setEvents(data); setLoading(false); }),
+      api.get("/settings/last-scraper-run").then((data) => { setLastRun(data.last_run || ""); })
+    ]);
   }, []);
 
   const subscribe = async () => {
@@ -30,6 +34,9 @@ export default function EventList({ onSelect }) {
   return (
     <div>
       <h3>Bevorstehende Quiz-Abende</h3>
+      {!loading && <p style={{ fontSize: "0.85rem", color: "#6b7280", margin: "0.5rem 0" }}>
+        Automatische Prüfung auf neue Termine läuft alle 2 Stunden. Zuletzt aktualisiert: {lastRun}
+      </p>}
       {loading && <p>Lade Termine...</p>}
       {!loading && events.length === 0 && (
         <p style={{ color: "#6b7280" }}>Noch keine Termine. Websites jetzt prüfen oder zuerst einen Anbieter konfigurieren.</p>

@@ -1,19 +1,25 @@
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db, init_db
-from models import Provider, Event, Participant, RSVP, InviteToken
-from email_service import send_rsvp_confirmation, send_participant_welcome, send_participant_removed
+from models import Provider, Event, Participant, RSVP, Setting
+from email_service import send_rsvp_confirmation, send_participant_welcome, send_participant_removed, _send
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    # Scheduler im Hintergrund starten
+    import threading
+    from scheduler import start_scheduler
+    def _start():
+        start_scheduler()
+    threading.Thread(target=_start, daemon=True).start()
     yield
 
 app = FastAPI(title="Quiz-Master", lifespan=lifespan)
@@ -51,6 +57,8 @@ def delete_provider(provider_id: int, db: Session = Depends(get_db)):
     provider = db.get(Provider, provider_id)
     if not provider:
         raise HTTPException(404)
+    # Alle Events des Providers löschen (mit CASCADE für RSVPs)
+    db.query(Event).filter_by(provider_id=provider_id).delete(synchronize_session=False)
     db.delete(provider)
     db.commit()
 
@@ -135,7 +143,7 @@ def rsvp_via_link(token: str, response: str, companions: int = 0, db: Session = 
     if response == "yes":
         rsvp.companions = max(0, companions)
     db.commit()
-    if response in ("yes", "maybe"):
+    if response in ("yes", "maybe") and rsvp.participant.notifications_enabled and rsvp.participant.email:
         send_rsvp_confirmation(
             participant_name=rsvp.participant.name,
             email=rsvp.participant.email,
@@ -161,22 +169,43 @@ def rsvp_page_data(token: str, db: Session = Depends(get_db)):
         "token": token,
     }
 
-# --- Einladungslink ---
+# --- Einladungslink (statisch) ---
 
-@app.post("/admin/invite", status_code=201)
-def generate_invite(db: Session = Depends(get_db)):
-    db.query(InviteToken).delete()
-    t = InviteToken()
-    db.add(t)
-    db.commit()
-    return {"token": t.token}
+INVITE_TOKEN = "quizmaster"  # Statischer Token, immer derselbe Link
+
+@app.get("/admin/invite")
+def get_invite_link(db: Session = Depends(get_db)):
+    # Statische Rückgabe für Kompatibilität mit allem Code
+    return {"token": INVITE_TOKEN}
 
 @app.get("/invite/{token}")
 def validate_invite(token: str, db: Session = Depends(get_db)):
-    t = db.query(InviteToken).filter_by(token=token).first()
-    if not t:
-        raise HTTPException(404, "Link ungültig oder abgelaufen")
+    if token != INVITE_TOKEN:
+        raise HTTPException(404, "Link ungültig")
     return {"valid": True}
+
+@app.get("/unsubscribe/{email}")
+def unsubscribe(email: str, db: Session = Depends(get_db)):
+    import urllib.parse
+    decoded_email = urllib.parse.unquote(email)
+    participant = db.query(Participant).filter_by(email=decoded_email).first()
+    if not participant:
+        return {"message": "Teilnehmer nicht gefunden"}
+    participant.notifications_enabled = False
+    db.commit()
+    return {"message": "Benachrichtigungen erfolgreich abbestellt. Du erhältst keine weiteren E-Mails."}
+
+@app.get("/settings/last-scraper-run")
+def get_last_scraper_run(db: Session = Depends(get_db)):
+    s = db.query(Setting).filter_by(key="last_scraper_run").first()
+    if s and s.value:
+        from datetime import datetime
+        try:
+            dt = datetime.fromisoformat(s.value.replace("Z", "+00:00"))
+            return {"last_run": dt.strftime("%d.%m.%Y %H:%M Uhr")}
+        except:
+            pass
+    return {"last_run": "noch nicht"}
 
 @app.post("/invite/{token}", status_code=201)
 def register_via_invite(token: str, body: ParticipantCreate, db: Session = Depends(get_db)):
@@ -194,69 +223,6 @@ def register_via_invite(token: str, body: ParticipantCreate, db: Session = Depen
     return {"message": "Erfolgreich registriert", "name": participant.name}
 
 # --- Events (manuell) ---
-
-class EventCreate(BaseModel):
-    title: str
-    event_date: str
-    capacity: int = 5
-    description: str = ""
-    detail_url: str = ""
-
-@app.post("/events", status_code=201)
-def create_event(body: EventCreate, db: Session = Depends(get_db)):
-    from datetime import datetime as dt
-    event_date = dt.fromisoformat(body.event_date)
-    event = Event(
-        title=body.title,
-        event_date=event_date,
-        capacity=body.capacity,
-        description=body.description,
-        detail_url=body.detail_url or None,
-        status="neu",
-        source="manual",
-        provider_id=1
-    )
-    db.add(event)
-    db.commit()
-    db.refresh(event)
-    return {"id": event.id, "title": event.title, "status": event.status}
-
-@app.put("/events/{event_id}")
-def update_event(event_id: int, body: EventCreate, db: Session = Depends(get_db)):
-    event = db.get(Event, event_id)
-    if not event or event.source != "manual":
-        raise HTTPException(404)
-    from datetime import datetime as dt
-    event.title = body.title
-    event.event_date = dt.fromisoformat(body.event_date)
-    event.capacity = body.capacity
-    event.description = body.description
-    event.detail_url = body.detail_url or None
-    db.commit()
-    return {"message": "Event aktualisiert"}
-
-class StatusUpdate(BaseModel):
-    status: str
-
-@app.put("/events/{event_id}/status")
-def update_event_status(event_id: int, body: StatusUpdate, db: Session = Depends(get_db)):
-    event = db.get(Event, event_id)
-    if not event or event.source != "manual":
-        raise HTTPException(404)
-    if body.status not in ("neu", "gebucht", "abgesagt"):
-        raise HTTPException(400, "Ungültiger Status")
-    event.status = body.status
-    db.commit()
-    return {"message": f"Status auf '{body.status}' gesetzt"}
-
-@app.delete("/events/{event_id}")
-def delete_event(event_id: int, db: Session = Depends(get_db)):
-    event = db.get(Event, event_id)
-    if not event or event.source != "manual":
-        raise HTTPException(404)
-    db.delete(event)
-    db.commit()
-    return {"message": "Event gelöscht"}
 
 # --- RSVP (Admin-Editing) ---
 
@@ -276,10 +242,17 @@ def edit_rsvp(rsvp_id: int, response: str, companions: int = 0, db: Session = De
 # --- Scheduler manuell steuern ---
 
 @app.post("/admin/scraper/run", status_code=200)
-def run_scraper_now(db: Session = Depends(get_db)):
+def run_scraper_now(background_tasks: BackgroundTasks):
     from scraper import run_scraper
-    run_scraper(db)
-    return {"message": "Scraper ausgeführt"}
+    from database import SessionLocal
+    def _run():
+        db = SessionLocal()
+        try:
+            run_scraper(db)
+        finally:
+            db.close()
+    background_tasks.add_task(_run)
+    return {"message": "Scraper gestartet"}
 
 @app.post("/admin/booking/run", status_code=200)
 def run_booking_now():
