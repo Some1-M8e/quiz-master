@@ -8,11 +8,11 @@ from models import Event, RSVP
 logger = logging.getLogger(__name__)
 scheduler = BackgroundScheduler()
 
-MIN_PARTICIPANTS = 4
-BOOKING_DEADLINE_DAYS = 4  # Wenn > 0: Buchung nach X Tagen unabhängig von Teilnehmerzahl (kann später aktiviert werden)
+MIN_PARTICIPANTS = 4  # Mindestanzahl f체r Buchungserhalt (7 Tage vor Event)
+BOOKING_DEADLINE_DAYS = 4
 CANCELLATION_DAYS_BEFORE = 7
-CAPACITY = 5
-ENABLE_4DAY_RULE = False  # Auf True setzen um 4-Tage-Regel zu aktivieren
+CAPACITY = 5  # Buchung erfolgt sofort f체r 5 Personen
+ENABLE_4DAY_RULE = False
 
 def _total_attendees(event: Event, include_maybe: bool = True) -> int:
     now = datetime.now(timezone.utc)
@@ -68,67 +68,112 @@ def job_scraper():
         db.close()
 
 def job_booking_logic():
-    from email_service import send_booking_confirmation, send_cancellation
+    from email_service import send_booking_confirmation, send_cancellation, send_booking_warning, send_maybe_reminder
     import booking as booking_module
 
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
-        pending_events = db.query(Event).filter_by(status="neu").filter_by(source="scraper").all()
-        for event in pending_events:
-            # Buchung nur wenn Mindestanzahl erreicht ODER 4-Tage-Regel aktiv
-            total = _total_attendees(event, include_maybe=True)
-            days_until = (event.event_date.replace(tzinfo=timezone.utc) if event.event_date.tzinfo is None else event.event_date) - now
-            days_until = days_until.days
-
-            should_book = total >= MIN_PARTICIPANTS
-            if ENABLE_4DAY_RULE and days_until <= BOOKING_DEADLINE_DAYS:
-                should_book = True
-
-            if should_book:
-                success = asyncio.run(booking_module.book_event(
-                    detail_url=event.detail_url or event.provider.url,
-                    event_date=event.event_date,
-                    event_title=event.title,
-                ))
-                if success:
-                    event.status = "gebucht"
-                    event.capacity = CAPACITY
-                    db.commit()
-                    for rsvp in event.rsvps:
-                        if rsvp.response in ("yes", "maybe") and rsvp.participant.notifications_enabled and rsvp.participant.email:
-                            send_booking_confirmation(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"), event_description=event.description or "", response=rsvp.response)
-                    logger.info(f"Termin gebucht: {event.title} (Teilnehmer: {total}, Tage: {days_until})")
 
         booked_events = db.query(Event).filter_by(status="gebucht").all()
         for event in booked_events:
             event_date = event.event_date.replace(tzinfo=timezone.utc) if event.event_date.tzinfo is None else event.event_date
             days_until = (event_date - now).days
 
-            no_count = sum(1 + r.companions for r in event.rsvps if r.response == "no")
-            yes_maybe_count = _total_attendees(event, include_maybe=True)
-            max_possible = yes_maybe_count
-            min_without_maybe = sum(1 + r.companions for r in event.rsvps if r.response == "yes")
+            yes_count = sum(1 + r.companions for r in event.rsvps if r.response == "yes")
+            maybe_count = sum(1 + r.companions for r in event.rsvps if r.response == "maybe")
 
-            should_cancel = False
-            if min_without_maybe < MIN_PARTICIPANTS:
-                should_cancel = True
-            elif days_until <= CANCELLATION_DAYS_BEFORE and yes_maybe_count < MIN_PARTICIPANTS:
-                should_cancel = True
+            # --- 7 Tage vor Event: Erste Prüfung ---
+            if days_until == 7:
+                total_positive = yes_count + maybe_count  # Ja + Vielleicht zusammen
 
-            if should_cancel:
-                success = asyncio.run(booking_module.cancel_booking(
-                    detail_url=event.detail_url or event.provider.url,
-                    event_date=event.event_date,
-                    event_title=event.title,
-                ))
-                if success:
-                    event.status = "abgesagt"
-                    db.commit()
+                if total_positive < MIN_PARTICIPANTS:
+                    # Zu wenige positive Antworten insgesamt (Ja + Maybe) — sofort stornieren
+                    logger.info(f"Event {event.title}: Nur {total_positive} positive Antworten (Ja+Maybe, benötigt {MIN_PARTICIPANTS}) → Sofortige Stornierung")
+                    success = asyncio.run(booking_module.cancel_booking(
+                        detail_url=event.detail_url or event.provider.url,
+                        event_date=event.event_date,
+                        event_title=event.title,
+                    ))
+                    if success:
+                        event.status = "cancelled"
+                        db.commit()
+                        for rsvp in event.rsvps:
+                            if rsvp.participant.notifications_enabled and rsvp.participant.email:
+                                send_cancellation(
+                                    rsvp.participant.name, rsvp.participant.email,
+                                    event.title, event.event_date.strftime("%d.%m.%Y"),
+                                    event_description=event.description or ""
+                                )
+                        logger.info(f"Termin storniert: {event.title}")
+                elif yes_count >= MIN_PARTICIPANTS:
+                    # Genug feste Zusagen — Buchung bleibt, Maybe-Erinnerung senden
+                    logger.info(f"Event {event.title}: {yes_count} Ja-Stimmen → Buchung bestätigt, Maybe-Erinnerung gesendet")
                     for rsvp in event.rsvps:
                         if rsvp.response in ("yes", "maybe") and rsvp.participant.notifications_enabled and rsvp.participant.email:
-                            send_cancellation(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"), event_description=event.description or "")
-                    logger.info(f"Termin storniert: {event.title}")
+                            send_booking_confirmation(
+                                rsvp.participant.name, rsvp.participant.email,
+                                event.title, event.event_date.strftime("%d.%m.%Y"),
+                                event_description=event.description or "",
+                                response=rsvp.response
+                            )
+                    # Maybe-Teilnehmer erhalten Erinnerung mit 48h Frist (nur wenn noch nicht gesendet)
+                    for rsvp in event.rsvps:
+                        if rsvp.response == "maybe" and rsvp.reminder_sent_at is None and rsvp.participant.notifications_enabled and rsvp.participant.email:
+                            send_maybe_reminder(
+                                rsvp.participant.name, rsvp.participant.email,
+                                event.title, event.event_date.strftime("%d.%m.%Y"),
+                                rsvp.token, event_description=event.description or ""
+                            )
+                            rsvp.reminder_sent_at = now
+                    db.commit()
+                    # Warn-E-Mail an Ja-Teilnehmer wenn Maybe kritisch sind
+                    if maybe_count > 0:
+                        send_booking_warning(
+                            event_title=event.title,
+                            event_date=event.event_date.strftime("%d.%m.%Y"),
+                            yes_count=yes_count,
+                            maybe_count=maybe_count,
+                            participants=[r.participant for r in event.rsvps if r.response == "yes" and r.participant.notifications_enabled and r.participant.email]
+                        )
+                else:
+                    # Ja < 4 aber Ja+Maybe >= 4 — Buchung bleibt vorläufig, auf Maybe warten
+                    logger.info(f"Event {event.title}: {yes_count} Ja + {maybe_count} Maybe = {total_positive} (benötigt {MIN_PARTICIPANTS}) → Warte auf Maybe-Entscheidung")
+
+            # --- 5 Tage vor Event (48h nach Maybe-Erinnerung): Finale Prüfung ---
+            elif days_until == 5:
+                # Maybe automatisch zu Nein umwandeln
+                for rsvp in event.rsvps:
+                    if rsvp.response == "maybe":
+                        rsvp.response = "no"
+                db.commit()
+                logger.info(f"Event {event.title}: Maybe-Stimmen automatisch zu Nein konvertiert")
+
+                # Finale Prüfung nach Umwandlung
+                yes_count = sum(1 + r.companions for r in event.rsvps if r.response == "yes")
+
+                if yes_count >= MIN_PARTICIPANTS:
+                    logger.info(f"Event {event.title}: {yes_count} Ja-Stimmen nach Maybe-Konvertierung → Buchung bleibt bestehen")
+                else:
+                    # Zu wenige nach Maybe-Konvertierung — stornieren
+                    logger.info(f"Event {event.title}: Nur {yes_count} Ja-Stimmen nach Maybe-Konvertierung → Finale Stornierung")
+                    success = asyncio.run(booking_module.cancel_booking(
+                        detail_url=event.detail_url or event.provider.url,
+                        event_date=event.event_date,
+                        event_title=event.title,
+                    ))
+                    if success:
+                        event.status = "cancelled"
+                        db.commit()
+                        for rsvp in event.rsvps:
+                            if rsvp.participant.notifications_enabled and rsvp.participant.email:
+                                send_cancellation(
+                                    rsvp.participant.name, rsvp.participant.email,
+                                    event.title, event.event_date.strftime("%d.%m.%Y"),
+                                    event_description=event.description or ""
+                                )
+                        logger.info(f"Termin storniert: {event.title}")
+
     finally:
         db.close()
 
@@ -149,39 +194,14 @@ def job_reminders():
         db.close()
 
 def job_maybe_reminders():
-    from email_service import send_maybe_reminder
-    db = SessionLocal()
-    try:
-        now = datetime.now(timezone.utc)
-        booked_events = db.query(Event).filter_by(status="gebucht").all()
-        for event in booked_events:
-            event_date = event.event_date.replace(tzinfo=timezone.utc) if event.event_date.tzinfo is None else event.event_date
-            days_until = (event_date - now).days
-
-            if days_until == 7:
-                for rsvp in event.rsvps:
-                    if rsvp.response == "maybe" and rsvp.reminder_sent_at is None and rsvp.participant.notifications_enabled and rsvp.participant.email:
-                        send_maybe_reminder(rsvp.participant.name, rsvp.participant.email, event.title, event.event_date.strftime("%d.%m.%Y"), rsvp.token, event_description=event.description or "")
-                        rsvp.reminder_sent_at = now
-                db.commit()
-    finally:
-        db.close()
+    # Diese Funktion wurde in job_booking_logic integriert (Tag 7 Prüfung)
+    # Hier nur noch als Platzhalter für Kompatibilität
+    pass
 
 def job_maybe_auto_convert():
-    db = SessionLocal()
-    try:
-        now = datetime.now(timezone.utc)
-        all_events = db.query(Event).all()
-        for event in all_events:
-            for rsvp in event.rsvps:
-                if rsvp.response == "maybe" and rsvp.reminder_sent_at is not None:
-                    time_since_reminder = now - rsvp.reminder_sent_at
-                    if time_since_reminder >= timedelta(hours=24):
-                        rsvp.response = "no"
-                        logger.info(f"Participant {rsvp.participant.name}: 'maybe' zu 'no' konvertiert (24h Frist abgelaufen)")
-        db.commit()
-    finally:
-        db.close()
+    # Diese Funktion wurde in job_booking_logic integriert (Tag 5 Prüfung)
+    # Hier nur noch als Platzhalter für Kompatibilität
+    pass
 
 def job_weekly_reminder():
     from email_service import send_weekly_reminder
@@ -200,8 +220,7 @@ def job_weekly_reminder():
 def start_scheduler():
     scheduler.add_job(job_scraper, "interval", hours=2, id="scraper")
     scheduler.add_job(job_booking_logic, "interval", hours=1, id="booking")
-    scheduler.add_job(job_maybe_reminders, "interval", hours=1, id="maybe_reminders")
-    scheduler.add_job(job_maybe_auto_convert, "interval", hours=1, id="maybe_auto_convert")
+    # job_maybe_reminders und job_maybe_auto_convert sind deaktiviert (in job_booking_logic integriert)
     scheduler.add_job(job_reminders, "cron", hour=8, minute=0, id="reminders")
     scheduler.add_job(job_weekly_reminder, "cron", day_of_week=3, hour=8, minute=0, id="weekly_reminder")
     scheduler.start()

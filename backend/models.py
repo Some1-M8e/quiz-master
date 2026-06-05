@@ -19,7 +19,7 @@ class Event(Base):
     event_date: Mapped[datetime] = mapped_column(DateTime)
     detail_url: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     description: Mapped[str | None] = mapped_column(String(2000), nullable=True)
-    status: Mapped[str] = mapped_column(SAEnum("pending", "booked", "cancelled", "ausverkauft", name="event_status"), default="pending")
+    status: Mapped[str] = mapped_column(SAEnum("pending", "booked", "cancelled", "ausverkauft", "teilweise_ausverkauft", name="event_status"), default="pending")
     capacity: Mapped[int] = mapped_column(Integer, nullable=True)
     source: Mapped[str] = mapped_column(SAEnum("scraper", "manual", name="event_source"), default="manual")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
@@ -30,7 +30,7 @@ class Participant(Base):
     __tablename__ = "participants"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
-    email: Mapped[str | None] = mapped_column(String(200), unique=True, nullable=True)
+    email: Mapped[str | None] = mapped_column(String(200), nullable=True)  # Optional, keine Unique-Beschränkung
     notifications_enabled: Mapped[bool] = mapped_column(default=True)  # Benachrichtigungen abbestellbar
     rsvps: Mapped[list["RSVP"]] = relationship(back_populates="participant")
 

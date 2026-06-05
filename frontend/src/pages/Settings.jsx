@@ -7,7 +7,9 @@ export default function Settings({ onNavigate }) {
   const [copied, setCopied] = useState(false);
 
   const loadAll = () => {
-    api.get("/participants").then(setParticipants);
+    api.get("/participants").then(setParticipants).catch((err) => {
+      console.error("Failed to load participants:", err);
+    });
   };
 
   useEffect(() => { loadAll(); }, []);
@@ -36,9 +38,18 @@ export default function Settings({ onNavigate }) {
           { placeholder: "E-Mail (optional)", value: newParticipant.email, onChange: (v) => setNewParticipant({ ...newParticipant, email: v }) },
         ]} onAdd={async () => {
           if (!newParticipant.name.trim()) return;
-          await api.post("/participants", newParticipant);
-          setNewParticipant({ name: "", email: "" });
-          loadAll();
+          try {
+            await api.post("/participants", newParticipant);
+            setNewParticipant({ name: "", email: "" });
+            loadAll();
+          } catch (err) {
+            console.error("Failed to add participant:", err);
+            if (err.message.includes("409")) {
+              alert("Diese E-Mail-Adresse ist bereits registriert.");
+            } else {
+              alert("Fehler beim Hinzufügen des Teilnehmers: " + err.message);
+            }
+          }
         }} />
       </Section>
 

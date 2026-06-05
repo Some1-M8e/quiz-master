@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz-Master Prozess-Diagramme</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f4f8; padding: 20px; }
+        h1 { text-align: center; color: #1a365d; margin-bottom: 30px; font-size: 28px; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .diagram-card { background: white; border-radius: 12px; padding: 30px; margin-bottom: 30px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        .diagram-card h2 { color: #2d3748; margin-bottom: 20px; font-size: 20px; border-bottom: 2px solid #4299e1; padding-bottom: 10px; }
+        .diagram-container { display: flex; justify-content: center; padding: 20px; background: #fafbfc; border-radius: 8px; overflow-x: auto; min-height: 300px; }
+        .copy-btn { background: #4299e1; color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer; font-size: 14px; margin-top: 15px; }
+        .copy-btn:hover { background: #3182ce; }
+        .copy-btn.copied { background: #48bb78; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .tab-btn { background: #e2e8f0; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold; }
+        .tab-btn.active { background: #4299e1; color: white; }
+        .diagram-section { display: none; }
+        .diagram-section.active { display: block; }
+        .error { color: red; padding: 20px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Quiz-Master Prozess-Diagramme</h1>
+        <div class="tabs">
+            <button class="tab-btn active" onclick="showSection(1)">1. Anmeldungsprozess</button>
+            <button class="tab-btn" onclick="showSection(2)">2. Scraper</button>
+            <button class="tab-btn" onclick="showSection(3)">3. RSVP</button>
+            <button class="tab-btn" onclick="showSection(4)">4. E-Mail</button>
+            <button class="tab-btn" onclick="showSection(5)">5. Admin</button>
+            <button class="tab-btn" onclick="showSection(6)">6. Overview</button>
+        </div>
+
+        <div id="section-1" class="diagram-section active">
+            <div class="diagram-card">
+                <h2>Anmeldungsprozess (Event Booking)</h2>
+                <div class="diagram-container"><pre class="mermaid">
+flowchart TD
+    A([Start]) --> B[Scraper findet Termin]
+    B --> C[Event speichern]
+    C --> D[Einladungs-Mails senden]
+    D --> E[Warten auf Antworten]
+    E --> F{Teilnehmer antwortet?}
+    F -->|Ja| G[RSVP speichern]
+    F -->|Nein| E
+    G --> H{7 Tage vergangen?}
+    H -->|Nein| I{4 Ja-Antworten?}
+    H -->|Ja| I
+    I -->|Ja| J[Event buchen]
+    I -->|Nein| E
+    J --> K[Bestatigungs-Mail]
+    K --> L[Wochentliche Reminder]
+    L --> M([Ende])
+    E --> N{Zu viele Absagen?}
+    N -->|Ja| O[Event stornieren]
+    N -->|Nein| E
+    O --> P([Ende])
+                </pre></div>
+                <button class="copy-btn" onclick="copyCode(1)">Code kopieren</button>
+            </div>
+        </div>
+
+        <div id="section-2" class="diagram-section">
+            <div class="diagram-card">
+                <h2>Scraper-Prozess</h2>
+                <div class="diagram-container"><pre class="mermaid">
+flowchart TD
+    A([Start - 6:00 Uhr]) --> B[Provider laden]
+    B --> C{Nchster Provider?}
+    C -->|Ja| D[Website offnen]
+    C -->|Nein| E{Neue Termine?}
+    D --> F[Daten extrahieren]
+    F --> G{Existiert schon?}
+    G -->|Ja| C
+    G -->|Nein| H[Event speichern]
+    H --> I[Einladungs-Mail]
+    I --> C
+    E -->|Ja| J([Ende])
+    E -->|Nein| K([Ende])
+                </pre></div>
+                <button class="copy-btn" onclick="copyCode(2)">Code kopieren</button>
+            </div>
+        </div>
+
+        <div id="section-3" class="diagram-section">
+            <div class="diagram-card">
+                <h2>RSVP-Prozess</h2>
+                <div class="diagram-container"><pre class="mermaid">
+flowchart TD
+    A([Start]) --> B[Teilnehmer erhlt Mail]
+    B --> C[Link offnen]
+    C --> D{Antwort whlen?}
+    D -->|Ja| E[Ja + Begleitung]
+    D -->|Nein| F[Nein]
+    D -->|Maybe| G[Maybe]
+    E --> H[Speichern: yes]
+    F --> I[Speichern: no]
+    G --> J[Speichern: maybe]
+    H --> K[Besttigung senden]
+    I --> L([Ende])
+    J --> K
+    K --> M([Ende])
+                </pre></div>
+                <button class="copy-btn" onclick="copyCode(3)">Code kopieren</button>
+            </div>
+        </div>
+
+        <div id="section-4" class="diagram-section">
+            <div class="diagram-card">
+                <h2>E-Mail-Versand</h2>
+                <div class="diagram-container"><pre class="mermaid">
+flowchart TD
+    A([Start]) --> B{Auslser}
+    B -->|RSVP| C[Besttigung]
+    B -->|Gebucht| D[Buchung]
+    B -->|Abgesagt| E[Stornierung]
+    B -->|1 Woche| F[Erinnerung]
+    B -->|Do 8:00| G[Reminder]
+    B -->|24h Maybe| H[Konvertierung]
+    C --> I{Enabled?}
+    D --> I
+    E --> I
+    F --> I
+    G --> I
+    H --> I
+    I -->|Ja| J[Versenden]
+    I -->|Nein| K[Skip]
+    J --> L[Log]
+    K --> M([Ende])
+    L --> M
+                </pre></div>
+                <button class="copy-btn" onclick="copyCode(4)">Code kopieren</button>
+            </div>
+        </div>
+
+        <div id="section-5" class="diagram-section">
+            <div class="diagram-card">
+                <h2>Admin-Management</h2>
+                <div class="diagram-container"><pre class="mermaid">
+flowchart TD
+    A([Start]) --> B[Settings offnen]
+    B --> C[Event-Liste]
+    C --> D{Aktion?}
+    D -->|Edit| E[Datenndern]
+    D -->|Status| F[Status whlen]
+    D -->|Delete| G[Lschen]
+    D -->|New| H[Erstellen]
+    E --> I[Speichern]
+    F --> I
+    G --> J{Besttigen?}
+    J -->|Ja| K[Loschen]
+    J -->|Nein| C
+    K --> C
+    H --> I
+    I --> C
+            </pre></div>
+                <button class="copy-btn" onclick="copyCode(5)">Code kopieren</button>
+            </div>
+        </div>
+
+        <div id="section-6" class="diagram-section">
+            <div class="diagram-card">
+                <h2>System-Uberblick</h2>
+                <div class="diagram-container"><pre class="mermaid">
+graph TD
+    subgraph S
+        S1[Website] --> S2{Neu?}
+        S2 -->|Ja| S3[Speichern]
+        S2 -->|Nein| S4[Ende]
+        S3 --> S5[Mail senden]
+    end
+    subgraph R
+        R1[Mail erhalten] --> R2[Antwort]
+        R2 --> R3[Speichern]
+        R3 --> R4{Enabled?}
+        R4 -->|Ja| R5[Besttigen]
+        R4 -->|Nein| R6[Keine Mail]
+    end
+    subgraph B
+        B1{4 Ja?} -->|Ja| B2[Buchen]
+        B1 -->|Nein| B3[Warten]
+        B2 --> B4[Senden]
+        B3 --> B5{7 Tage?}
+        B5 -->|Ja| B6[Stornieren]
+        B5 -->|Nein| B1
+    end
+    S --> R
+    R --> B
+                </pre></div>
+                <button class="copy-btn" onclick="copyCode(6)">Code kopieren</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose' });
+
+        function showSection(n) {
+            document.querySelectorAll('.diagram-section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('section-' + n).classList.add('active');
+            document.querySelectorAll('.tab-btn')[n-1].classList.add('active');
+        }
+
+        function copyCode(n) {
+            const container = document.querySelector(`#section-${n} .mermaid`);
+            if (container) {
+                navigator.clipboard.writeText(container.innerText).then(() => {
+                    const btn = event.target;
+                    btn.textContent = 'Kopiert!';
+                    btn.classList.add('copied');
+                    setTimeout(() => { btn.textContent = 'Code kopieren'; btn.classList.remove('copied'); }, 2000);
+                });
+            }
+        }
+    </script>
+</body>
+</html>

@@ -5,6 +5,7 @@ export default function RegisterPage({ token }) {
   const [valid, setValid] = useState(null);
   const [form, setForm] = useState({ name: "", email: "" });
   const [status, setStatus] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     api.get(`/invite/${token}`)
@@ -15,17 +16,16 @@ export default function RegisterPage({ token }) {
   const submit = async () => {
     if (!form.name || !form.email) return;
     setStatus("loading");
-    const res = await fetch(`http://localhost:8000/invite/${token}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    if (res.status === 201) {
+    setError(null);
+    try {
+      await api.post(`/invite/${token}`, form);
       setStatus("success");
-    } else if (res.status === 409) {
-      setStatus("duplicate");
-    } else {
-      setStatus("error");
+    } catch (err) {
+      if (err.message?.includes("409")) {
+        setStatus("duplicate");
+      } else {
+        setStatus("error");
+      }
     }
   };
 

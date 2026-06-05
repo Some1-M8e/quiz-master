@@ -6,6 +6,7 @@ export default function RsvpPage({ token }) {
   const [companions, setCompanions] = useState(0);
   const [done, setDone] = useState(null);
   const [daysUntil, setDaysUntil] = useState(null);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
     api.get(`/rsvp/${token}`).then((res) => {
@@ -14,15 +15,26 @@ export default function RsvpPage({ token }) {
       const now = new Date();
       const days = Math.ceil((eventDate - now) / (1000 * 60 * 60 * 24));
       setDaysUntil(days);
+    }).catch((err) => {
+      setError("RSVP nicht gefunden oder Link ungültig.");
     });
   }, [token]);
 
   const respond = async (response) => {
     const params = response === "yes" ? `?companions=${companions}` : "";
-    await fetch(`http://localhost:8000/rsvp/${token}/${response}${params}`);
-    setDone(response);
+    try {
+      await fetch(`http://localhost:8000/rsvp/${token}/${response}${params}`);
+      setDone(response);
+    } catch {
+      setError("Fehler beim Speichern der Antwort.");
+    }
   };
 
+  if (error) return (
+    <div style={{ padding: "2rem", textAlign: "center" }}>
+      <p style={{ color: "#ef4444" }}>{error}</p>
+    </div>
+  );
   if (!data) return <p style={{ padding: "2rem" }}>Lade...</p>;
   if (done) {
     const messages = {
@@ -80,7 +92,7 @@ export default function RsvpPage({ token }) {
       </div>
       {daysUntil !== null && daysUntil <= 7 && (
         <p style={{ marginTop: "1rem", color: "#6b7280", fontSize: "0.9rem" }}>
-          Ab einer Woche vor der Veranstaltung müssen Sie sich definitiv anmelden oder absagen.
+          Ab einer Woche vor der Veranstaltung müssen Sie sich definitiv anmelden oder absagen (48h Frist).
         </p>
       )}
       <p style={{ marginTop: "2rem", paddingTop: "1rem", borderTop: "1px solid #e5e7eb", fontSize: "0.85rem", color: "#9ca3af" }}>

@@ -117,9 +117,18 @@ async def _available_slots(ctx) -> list[str]:
 
 async def check_bookable(detail_url: str, event_date: datetime) -> bool:
     """Prüft ob ein Termin 19:00–19:30 Uhr mit 4 Personen buchbar ist (ohne zu buchen)."""
+    result = await _check_slots(detail_url, event_date)
+    return result >= 4  # True nur wenn 4+ Plätze verfügbar → Termin ist buchbar
+
+async def check_partial_bookable(detail_url: str, event_date: datetime) -> int:
+    """Prüft wie viele Plätze (2-4) verfügbar sind. Gibt Anzahl zurück oder 0 wenn nichts buchbar."""
+    return await _check_slots(detail_url, event_date)
+
+async def _check_slots(detail_url: str, event_date: datetime) -> int:
+    """Interne Funktion: prüft Slots für 4, 3, 2 Personen und gibt maximale buchbare Anzahl zurück."""
     if settings.booking_dry_run:
         logger.info(f"[DRY-RUN] Buchbarkeitsprüfung übersprungen für {detail_url}")
-        return True
+        return 4  # Dry-Run: immer als voll betrachten
 
     from playwright.async_api import async_playwright
     async with async_playwright() as p:
@@ -135,16 +144,21 @@ async def check_bookable(detail_url: str, event_date: datetime) -> bool:
             await page.screenshot(path=f"screenshots/check_2_{event_date.strftime('%Y%m%d')}.png")
 
             await _set_date(ctx, event_date)
-            await _set_guests(ctx, 4)
-            await ctx.wait_for_timeout(2000)
-            await page.screenshot(path=f"screenshots/check_3_{event_date.strftime('%Y%m%d')}.png")
 
-            slots = await _available_slots(ctx)
-            logger.info(f"Verfügbare Slots für {event_date.strftime('%d.%m.%Y')}: {slots or 'keine'}")
-            return len(slots) > 0
+            # Prüfe für 4, 3, 2 Personen – welche ist die maximale buchbare Anzahl?
+            for persons in [4, 3, 2]:
+                await _set_guests(ctx, persons)
+                await ctx.wait_for_timeout(1500)
+                slots = await _available_slots(ctx)
+                if slots:
+                    logger.info(f"Verfügbare Slots für {event_date.strftime('%d.%m.%Y')} ({persons} Personen): {slots}")
+                    return persons
+
+            logger.info(f"Keine freien Slots 19:00–19:30 für {event_date.strftime('%d.%m.%Y')} (auch nicht für 2 Personen)")
+            return 0
         except Exception as e:
             logger.error(f"Buchbarkeitsprüfung fehlgeschlagen ({detail_url}): {e}")
-            return False
+            return 0
         finally:
             await browser.close()
 

@@ -2,22 +2,37 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { displayTitle } from "../utils";
 
-const STATUS_LABEL = { pending: "Offen", booked: "Gebucht", cancelled: "Storniert", ausverkauft: "Ausverkauft" };
-const STATUS_COLOR = { pending: "#f59e0b", booked: "#22c55e", cancelled: "#ef4444", ausverkauft: "#6b7280" };
+const STATUS_LABEL = { neu: "Offen", pending: "Offen", booked: "Gebucht", cancelled: "Storniert", ausverkauft: "Ausverkauft", teilweise_ausverkauft: "Ausverkauft" };
+const STATUS_COLOR = { neu: "#f59e0b", pending: "#f59e0b", booked: "#22c55e", cancelled: "#ef4444", ausverkauft: "#6b7280", teilweise_ausverkauft: "#f59e0b" };
 
 export default function EventList({ onSelect }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastRun, setLastRun] = useState("");
+  const [scraperRunning, setScraperRunning] = useState(false);
   const [form, setForm] = useState({ name: "", email: "" });
   const [subscribeState, setSubscribeState] = useState("idle"); // idle | loading | success | error
 
-  useEffect(() => {
+  const loadEvents = () => {
     Promise.all([
-      api.get("/events").then((data) => { setEvents(data); setLoading(false); }),
-      api.get("/settings/last-scraper-run").then((data) => { setLastRun(data.last_run || ""); })
+      api.get("/events").then((data) => { setEvents(data); setLoading(false); }).catch(() => { setLoading(false); }),
+      api.get("/settings/last-scraper-run").then((data) => { setLastRun(data.last_run || ""); }).catch(() => {})
     ]);
-  }, []);
+  };
+
+  useEffect(() => { loadEvents(); }, []);
+
+  const runScraper = async () => {
+    if (scraperRunning) return;
+    setScraperRunning(true);
+    try {
+      await api.post("/admin/scraper/run");
+      setTimeout(() => { loadEvents(); setScraperRunning(false); }, 3000);
+    } catch (err) {
+      console.error("Scraper error:", err);
+      setScraperRunning(false);
+    }
+  };
 
   const subscribe = async () => {
     if (!form.name.trim() || !form.email.trim()) return;
@@ -26,17 +41,52 @@ export default function EventList({ onSelect }) {
       await api.post("/participants", form);
       setSubscribeState("success");
       setForm({ name: "", email: "" });
-    } catch {
+    } catch (err) {
+      console.error("Subscribe error:", err);
       setSubscribeState("error");
     }
   };
 
   return (
     <div>
-      <h3>Bevorstehende Quiz-Abende</h3>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.75rem" }}>
+        <h3 style={{ margin: 0 }}>Bevorstehende Quiz-Abende</h3>
+        <button
+          onClick={runScraper}
+          disabled={scraperRunning}
+          style={{
+            padding: "0.5rem 1rem",
+            background: scraperRunning ? "#9ca3af" : "#6366f1",
+            color: "white",
+            border: "none",
+            borderRadius: 6,
+            cursor: scraperRunning ? "not-allowed" : "pointer",
+            whiteSpace: "nowrap",
+            fontSize: "0.9rem"
+          }}
+        >
+          {scraperRunning ? "Prüfe..." : "Jetzt prüfen"}
+        </button>
+      </div>
       {!loading && <p style={{ fontSize: "0.85rem", color: "#6b7280", margin: "0.5rem 0" }}>
         Automatische Prüfung auf neue Termine läuft alle 2 Stunden. Zuletzt aktualisiert: {lastRun}
       </p>}
+      {!loading && (
+        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", margin: "0.75rem 0 1.5rem 0", fontSize: "0.85rem" }}>
+          <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+            <span style={{ width: 12, height: 12, background: "#f59e0b", borderRadius: 3 }}></span> Offen / Wenige Plätze
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+            <span style={{ width: 12, height: 12, background: "#22c55e", borderRadius: 3 }}></span> Gebucht
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+            <span style={{ width: 12, height: 12, background: "#ef4444", borderRadius: 3 }}></span> Abgesagt
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
+            <span style={{ width: 12, height: 12, background: "#6b7280", borderRadius: 3 }}></span> Ausverkauft (0 Plätze)
+          </span>
+        </div>
+      )}
       {loading && <p>Lade Termine...</p>}
       {!loading && events.length === 0 && (
         <p style={{ color: "#6b7280" }}>Noch keine Termine. Websites jetzt prüfen oder zuerst einen Anbieter konfigurieren.</p>

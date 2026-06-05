@@ -33,7 +33,7 @@ class ProviderCreate(BaseModel):
 
 class ParticipantCreate(BaseModel):
     name: str
-    email: str
+    email: str | None = None
 
 class RSVPUpdate(BaseModel):
     companions: int = 0
@@ -70,11 +70,17 @@ def list_participants(db: Session = Depends(get_db)):
 
 @app.post("/participants", status_code=201)
 def create_participant(body: ParticipantCreate, db: Session = Depends(get_db)):
+    # Prüfen ob E-Mail bereits existiert (nur wenn E-Mail angegeben ist)
+    if body.email:
+        existing = db.query(Participant).filter_by(email=body.email).first()
+        if existing:
+            raise HTTPException(status_code=409, detail="E-Mail-Adresse ist bereits registriert")
     participant = Participant(name=body.name, email=body.email)
     db.add(participant)
     db.commit()
     db.refresh(participant)
-    send_participant_welcome(participant.name, participant.email)
+    if body.email:
+        send_participant_welcome(participant.name, participant.email)
     return participant
 
 @app.delete("/participants/{participant_id}", status_code=204)
@@ -161,6 +167,7 @@ def rsvp_page_data(token: str, db: Session = Depends(get_db)):
         raise HTTPException(404)
     return {
         "participant_name": rsvp.participant.name,
+        "participant_email": rsvp.participant.email,
         "event_title": rsvp.event.title,
         "event_date": rsvp.event.event_date.strftime("%d.%m.%Y"),
         "current_response": rsvp.response,
