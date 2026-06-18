@@ -23,6 +23,8 @@ class Event(Base):
     capacity: Mapped[int] = mapped_column(Integer, nullable=True)
     source: Mapped[str] = mapped_column(SAEnum("scraper", "manual", name="event_source"), default="manual")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))
+    force_keep: Mapped[bool] = mapped_column(default=False)  # Manuell zum Behalten markiert
+    force_keep_note: Mapped[str | None] = mapped_column(String(500), nullable=True)  # Notiz zum Grund
     provider: Mapped["Provider"] = relationship(back_populates="events")
     rsvps: Mapped[list["RSVP"]] = relationship(back_populates="event", cascade="all, delete-orphan")
 

@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { api } from "../api";
 import { displayTitle } from "../utils";
 
-const STATUS_LABEL = { neu: "Offen", pending: "Offen", booked: "Gebucht", cancelled: "Storniert", ausverkauft: "Ausverkauft", teilweise_ausverkauft: "Ausverkauft" };
-const STATUS_COLOR = { neu: "#f59e0b", pending: "#f59e0b", booked: "#22c55e", cancelled: "#ef4444", ausverkauft: "#6b7280", teilweise_ausverkauft: "#f59e0b" };
+const STATUS_LABEL = { pending: "Offen", booked: "Gebucht", cancelled: "Storniert", ausverkauft: "Ausverkauft", teilweise_ausverkauft: "Begrenzt" };
+const STATUS_COLOR = { pending: "#f59e0b", booked: "#22c55e", cancelled: "#ef4444", ausverkauft: "#6b7280", teilweise_ausverkauft: "#f59e0b" };
 
 export default function EventList({ onSelect }) {
   const [events, setEvents] = useState([]);

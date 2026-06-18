@@ -23,6 +23,14 @@ export const api = {
     });
     return handleResponse(r);
   },
+  put: async (path, body) => {
+    const r = await fetch(`${BASE}${path}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return handleResponse(r);
+  },
   delete: async (path) => {
     const r = await fetch(`${BASE}${path}`, { method: "DELETE" });
     if (!r.ok) throw new Error(`HTTP ${r.status}`);

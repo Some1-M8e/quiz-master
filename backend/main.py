@@ -216,8 +216,7 @@ def get_last_scraper_run(db: Session = Depends(get_db)):
 
 @app.post("/invite/{token}", status_code=201)
 def register_via_invite(token: str, body: ParticipantCreate, db: Session = Depends(get_db)):
-    t = db.query(InviteToken).filter_by(token=token).first()
-    if not t:
+    if token != INVITE_TOKEN:
         raise HTTPException(404, "Link ungültig oder abgelaufen")
     existing = db.query(Participant).filter_by(email=body.email).first()
     if existing:
@@ -272,3 +271,70 @@ def start_scheduler():
     from scheduler import start_scheduler as _start
     _start()
     return {"message": "Scheduler gestartet"}
+
+
+# --- Event: Manuell zum Behalten markieren ---
+
+class ForceKeepEvent(BaseModel):
+    force_keep: bool
+    note: str | None = None
+
+@app.put("/admin/events/{event_id}/force-keep")
+def force_keep_event(event_id: int, body: ForceKeepEvent, db: Session = Depends(get_db)):
+    """
+    Event manuell zum Behalten markieren (verhindert automatische Stornierung).
+    """
+    event = db.get(Event, event_id)
+    if not event:
+        raise HTTPException(404, "Event nicht gefunden")
+    event.force_keep = body.force_keep
+    event.force_keep_note = body.note
+    db.commit()
+    db.refresh(event)
+    return {
+        "message": f"Event {'zum Behalten markiert' if event.force_keep else 'nicht mehr zum Behalten markiert'}",
+        "force_keep": event.force_keep,
+        "note": event.force_keep_note,
+    }
+
+@app.get("/admin/events/{event_id}")
+def get_event_admin(event_id: int, db: Session = Depends(get_db)):
+    """
+    Admin-View für Event mit allen Details inkl. force_keep.
+    """
+    event = db.get(Event, event_id)
+    if not event:
+        raise HTTPException(404, "Event nicht gefunden")
+    rsvps = []
+    for r in event.rsvps:
+        rsvps.append({
+            "id": r.id,
+            "participant_name": r.participant.name,
+            "participant_email": r.participant.email,
+            "response": r.response,
+            "companions": r.companions,
+            "selected": r.selected,
+            "token": r.token,
+        })
+    yes_count = sum(1 + r.companions for r in event.rsvps if r.response == "yes")
+    maybe_count = sum(1 + r.companions for r in event.rsvps if r.response == "maybe")
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    event_date = event.event_date.replace(tzinfo=timezone.utc) if event.event_date.tzinfo is None else event.event_date
+    days_until = (event_date - now).days
+    return {
+        "id": event.id,
+        "title": event.title,
+        "event_date": event.event_date.isoformat(),
+        "status": event.status,
+        "detail_url": event.detail_url,
+        "description": event.description,
+        "source": event.source,
+        "created_at": event.created_at.isoformat(),
+        "force_keep": event.force_keep,
+        "force_keep_note": event.force_keep_note,
+        "yes_count": yes_count,
+        "maybe_count": maybe_count,
+        "days_until": days_until,
+        "rsvps": rsvps,
+    }

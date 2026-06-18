@@ -75,7 +75,7 @@ def job_booking_logic():
     try:
         now = datetime.now(timezone.utc)
 
-        booked_events = db.query(Event).filter_by(status="gebucht").all()
+        booked_events = db.query(Event).filter_by(status="booked").all()
         for event in booked_events:
             event_date = event.event_date.replace(tzinfo=timezone.utc) if event.event_date.tzinfo is None else event.event_date
             days_until = (event_date - now).days
@@ -89,23 +89,27 @@ def job_booking_logic():
 
                 if total_positive < MIN_PARTICIPANTS:
                     # Zu wenige positive Antworten insgesamt (Ja + Maybe) — sofort stornieren
-                    logger.info(f"Event {event.title}: Nur {total_positive} positive Antworten (Ja+Maybe, benötigt {MIN_PARTICIPANTS}) → Sofortige Stornierung")
-                    success = asyncio.run(booking_module.cancel_booking(
-                        detail_url=event.detail_url or event.provider.url,
-                        event_date=event.event_date,
-                        event_title=event.title,
-                    ))
-                    if success:
-                        event.status = "cancelled"
-                        db.commit()
-                        for rsvp in event.rsvps:
-                            if rsvp.participant.notifications_enabled and rsvp.participant.email:
-                                send_cancellation(
-                                    rsvp.participant.name, rsvp.participant.email,
-                                    event.title, event.event_date.strftime("%d.%m.%Y"),
-                                    event_description=event.description or ""
-                                )
-                        logger.info(f"Termin storniert: {event.title}")
+                    # AUSSERDEM: Event wurde manuell zum Behalten markiert (force_keep)
+                    if getattr(event, 'force_keep', False):
+                        logger.info(f"Event {event.title}: Manuell zum Behalten markiert → Stornierung übersprungen")
+                    else:
+                        logger.info(f"Event {event.title}: Nur {total_positive} positive Antworten (Ja+Maybe, benötigt {MIN_PARTICIPANTS}) → Sofortige Stornierung")
+                        success = asyncio.run(booking_module.cancel_booking(
+                            detail_url=event.detail_url or event.provider.url,
+                            event_date=event.event_date,
+                            event_title=event.title,
+                        ))
+                        if success:
+                            event.status = "cancelled"
+                            db.commit()
+                            for rsvp in event.rsvps:
+                                if rsvp.participant.notifications_enabled and rsvp.participant.email:
+                                    send_cancellation(
+                                        rsvp.participant.name, rsvp.participant.email,
+                                        event.title, event.event_date.strftime("%d.%m.%Y"),
+                                        event_description=event.description or ""
+                                    )
+                            logger.info(f"Termin storniert: {event.title}")
                 elif yes_count >= MIN_PARTICIPANTS:
                     # Genug feste Zusagen — Buchung bleibt, Maybe-Erinnerung senden
                     logger.info(f"Event {event.title}: {yes_count} Ja-Stimmen → Buchung bestätigt, Maybe-Erinnerung gesendet")
@@ -156,23 +160,27 @@ def job_booking_logic():
                     logger.info(f"Event {event.title}: {yes_count} Ja-Stimmen nach Maybe-Konvertierung → Buchung bleibt bestehen")
                 else:
                     # Zu wenige nach Maybe-Konvertierung — stornieren
-                    logger.info(f"Event {event.title}: Nur {yes_count} Ja-Stimmen nach Maybe-Konvertierung → Finale Stornierung")
-                    success = asyncio.run(booking_module.cancel_booking(
-                        detail_url=event.detail_url or event.provider.url,
-                        event_date=event.event_date,
-                        event_title=event.title,
-                    ))
-                    if success:
-                        event.status = "cancelled"
-                        db.commit()
-                        for rsvp in event.rsvps:
-                            if rsvp.participant.notifications_enabled and rsvp.participant.email:
-                                send_cancellation(
-                                    rsvp.participant.name, rsvp.participant.email,
-                                    event.title, event.event_date.strftime("%d.%m.%Y"),
-                                    event_description=event.description or ""
-                                )
-                        logger.info(f"Termin storniert: {event.title}")
+                    # AUSSERDEM: Event wurde manuell zum Behalten markiert (force_keep)
+                    if getattr(event, 'force_keep', False):
+                        logger.info(f"Event {event.title}: Manuell zum Behalten markiert → Finale Stornierung übersprungen")
+                    else:
+                        logger.info(f"Event {event.title}: Nur {yes_count} Ja-Stimmen nach Maybe-Konvertierung → Finale Stornierung")
+                        success = asyncio.run(booking_module.cancel_booking(
+                            detail_url=event.detail_url or event.provider.url,
+                            event_date=event.event_date,
+                            event_title=event.title,
+                        ))
+                        if success:
+                            event.status = "cancelled"
+                            db.commit()
+                            for rsvp in event.rsvps:
+                                if rsvp.participant.notifications_enabled and rsvp.participant.email:
+                                    send_cancellation(
+                                        rsvp.participant.name, rsvp.participant.email,
+                                        event.title, event.event_date.strftime("%d.%m.%Y"),
+                                        event_description=event.description or ""
+                                    )
+                            logger.info(f"Termin storniert: {event.title}")
 
     finally:
         db.close()
@@ -182,7 +190,7 @@ def job_reminders():
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
-        booked_events = db.query(Event).filter_by(status="gebucht").all()
+        booked_events = db.query(Event).filter_by(status="booked").all()
         for event in booked_events:
             event_date = event.event_date.replace(tzinfo=timezone.utc) if event.event_date.tzinfo is None else event.event_date
             days_until = (event_date - now).days
@@ -208,7 +216,7 @@ def job_weekly_reminder():
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
-        booked_events = db.query(Event).filter_by(status="gebucht").all()
+        booked_events = db.query(Event).filter_by(status="booked").all()
         for event in booked_events:
             for rsvp in event.rsvps:
                 if rsvp.response in (None, "maybe") and rsvp.response != "no" and rsvp.participant.notifications_enabled and rsvp.participant.email:

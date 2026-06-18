@@ -105,7 +105,7 @@ def scrape_provider(provider: Provider, db: Session) -> list[dict]:
             available_slots = 4
 
         # Status basierend auf Website-Status UND verfügbarer Kapazität
-        # Nur "neu" = buchbar mit 4+ Slots wird sofort gebucht
+        # Nur "pending" = buchbar mit 4+ Slots wird sofort gebucht
         if any(word in status for word in ["abgesagt", "cancelled"]):
             event_status = "cancelled"
         elif any(word in status for word in ["ausverkauft", "sold out"]) or available_slots == 0:
@@ -113,7 +113,7 @@ def scrape_provider(provider: Provider, db: Session) -> list[dict]:
         elif available_slots < 4:
             event_status = "teilweise_ausverkauft"  # 2-3 Plätze → wird nicht gebucht
         else:
-            event_status = "neu"  # 4+ Plätze → wird SOFORT gebucht
+            event_status = "pending"  # 4+ Plätze → wird SOFORT gebucht
 
         logger.info(f"Event '{title}' am {date.strftime('%d.%m.')}: {available_slots} Plätze verfügbar → {event_status}")
         found_events.append({"title": title, "date": date, "detail_url": detail_url, "description": description, "status": event_status})
@@ -142,13 +142,13 @@ def run_scraper(db: Session):
             db.add(event)
             db.flush()
 
-            # Sofort buchen für 5 Personen (nur wenn Status "neu" = buchbar)
-            if ev["status"] == "neu":
+            # Sofort buchen für 5 Personen (nur wenn Status "pending" = buchbar)
+            if ev["status"] == "pending":
                 import asyncio
                 from booking import book_event
                 success = asyncio.run(book_event(ev["detail_url"], ev["date"], ev["title"]))
                 if success:
-                    event.status = "gebucht"
+                    event.status = "booked"
                     event.capacity = 5
                     db.commit()
                     logger.info(f"Event '{ev['title']}' am {ev['date'].strftime('%d.%m.')} SOFORT gebucht für 5 Personen")

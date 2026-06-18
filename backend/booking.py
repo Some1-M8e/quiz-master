@@ -163,8 +163,8 @@ async def _check_slots(detail_url: str, event_date: datetime) -> int:
             await browser.close()
 
 
-async def book_event(detail_url: str, event_date: datetime, event_title: str = "") -> bool:
-    if settings.booking_dry_run:
+async def book_event(detail_url: str, event_date: datetime, event_title: str = "", dry_run: bool = False, stop_before_confirm: bool = False, custom_guests: int = None) -> bool:
+    if settings.booking_dry_run or dry_run:
         label = event_title or detail_url
         logger.info(f"[DRY-RUN] Würde buchen: {label} am {event_date.strftime('%d.%m.%Y')}")
         return True
@@ -176,28 +176,40 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
         page = await context.new_page()
         try:
             await page.goto(detail_url, wait_until="networkidle", timeout=30000)
+            await page.screenshot(path="screenshots/test_01_seite_geladen.png")
+            logger.info("Schritt 1: Detailseite geladen")
+
             ctx = await _open_resmio(page, context)
+            await page.screenshot(path="screenshots/test_02_resmio_geoeffnet.png")
+            logger.info("Schritt 2: Resmio geoeffnet")
 
             if not await _set_date(ctx, event_date):
                 logger.error("Datum konnte nicht gesetzt werden")
                 return False
-            if not await _set_guests(ctx, 4):
+            await page.screenshot(path="screenshots/test_03_datum_gesetzt.png")
+            logger.info(f"Schritt 3: Datum gesetzt auf {event_date.strftime('%d.%m.%Y')}")
+
+            # Benutzerspezifische Personenzahl
+            guests = custom_guests if custom_guests is not None else 4
+            if not await _set_guests(ctx, guests):
                 logger.error("Personenzahl konnte nicht gesetzt werden")
                 return False
+            await page.screenshot(path="screenshots/test_04_personen_gesetzt.png")
+            logger.info(f"Schritt 4: Personen gesetzt auf {guests}")
 
             await ctx.wait_for_timeout(2000)
             slots = await _available_slots(ctx)
             if not slots:
                 logger.info(f"Keine freien Slots 19:00–19:30 für {event_date.strftime('%d.%m.%Y')}")
                 return False
+            logger.info(f"Verfügbare Slots: {slots}")
 
             # Späteste verfügbare Uhrzeit wählen
             chosen = slots[0]
             await ctx.get_by_text(chosen, exact=True).first.click(timeout=5000)
             await ctx.wait_for_timeout(2000)
-
-            os.makedirs("screenshots", exist_ok=True)
-            await page.screenshot(path=f"screenshots/book_slot_{event_date.strftime('%Y%m%d')}.png")
+            await page.screenshot(path="screenshots/test_05_uhrzeit_gewaehlt.png")
+            logger.info(f"Schritt 5: Uhrzeit gewählt: {chosen}")
 
             # Kontaktdaten ausfüllen
             for selector in ("input[name='name']", "input[placeholder*='Name']", "input[placeholder*='name']"):
@@ -219,8 +231,28 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
                         break
                     except Exception:
                         pass
+            await page.screenshot(path="screenshots/test_06_kontaktdaten_ausgefuellt.png")
+            logger.info("Schritt 6: Kontaktdaten ausgefüllt")
 
-            await page.screenshot(path=f"screenshots/book_form_{event_date.strftime('%Y%m%d')}.png")
+            # Optionale Nachricht eintragen
+            for selector in ("textarea", "input[name='message']", "input[name='note']", "[placeholder*='Nachricht']", "[placeholder*='message']", "[placeholder*='Anmerkung']"):
+                try:
+                    msg_inp = ctx.locator(selector).first
+                    if await msg_inp.is_visible(timeout=2000):
+                        await msg_inp.fill("Diese Buchung wurde von einer KI für mich durchgeführt. Bei Problemen bitte anrufen!!", timeout=3000)
+                        logger.info("Nachricht im Buchungformular eingetragen")
+                        break
+                except Exception:
+                    pass
+
+            await page.screenshot(path="screenshots/test_07_nachricht_eingetragen.png")
+            logger.info("Schritt 7: Nachricht eingetragen")
+
+            if stop_before_confirm:
+                logger.info("STOPP vor Confirm-Button (Testmodus)")
+                await page.screenshot(path="screenshots/test_08_vor_confirm_stopp.png")
+                logger.info("Test abgeschlossen - alle Felder ausgefüllt, Confirm-Button nicht geklickt")
+                return True
 
             # Formular absenden
             submitted = False

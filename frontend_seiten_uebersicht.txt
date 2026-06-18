@@ -1,0 +1,40 @@
+Frontend-Seiten Übersicht
+==========================
+
+Alle Seiten, die ein Nutzer sehen kann:
+
+1. Termine-Liste (EventList)
+   URL: http://localhost:5173/ oder /events
+   Beschreibung: Alle Termine auflisten, nach Datum sortieren, Event auswählen
+
+2. Event-Detail (EventDetail)
+   URL: http://localhost:5173/event/{id}
+   Beschreibung: Event-Infos anzeigen, RSVPs auflisten, Teilnehmer verwalten (Admin)
+
+3. Einstellungen (Settings)
+   URL: http://localhost:5173/settings
+   Beschreibung: Admin-Bereich, Teilnehmer verwalten, Einladungs-Link generieren, Scraper-Einstellungen
+
+4. RSVP-Seite (RsvpPage)
+   URL: http://localhost:5173/rsvp/{token}
+   Beschreibung: Teilnahme-Bestätigung (Ja/Nein/Maybe), Begleitung auswählen - aus Mail-Link erreichbar
+
+5. Registrierungsseite (RegisterPage)
+   URL: http://localhost:5173/register/{token}
+   Beschreibung: Neue Teilnehmer anmelden, erreichbar über /register/quizmaster
+
+
+URL-Struktur:
+-------------
+http://localhost:5173/
+├── /                      → Termine-Liste (EventList)
+├── /event/{id}            → Event-Detailansicht
+├── /settings              → Einstellungen (Settings)
+├── /rsvp/{token}          → RSVP-Seite (RsvpPage)
+└── /register/{token}      → Registrierungsseite (RegisterPage)
+
+
+Test-Links:
+-----------
+- RSVP-Seite:     http://localhost:5173/rsvp/test-token-123
+- Unsubscribe:    http://localhost:8000/unsubscribe/test%40example.com

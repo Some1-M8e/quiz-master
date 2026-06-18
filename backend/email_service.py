@@ -40,6 +40,31 @@ def _event_info_block(event_title: str, event_date: str, event_description: str)
 
 
 def _send(to: str, subject: str, body_html: str, include_unsubscribe: bool = True):
+    # Automatisierungs-Hinweis vor der Begrüßung hinzufügen
+    automation_notice = (
+        '<p style="background:#fef3c7;padding:8px 12px;border-radius:4px;margin:0 0 1rem 0;'
+        'font-size:0.85rem;color:#92400e;border-left:3px solid #f59e0b;">'
+        '<strong>Achtung:</strong> Diese E-Mail wurde automatisiert von einem Tool versendet. '
+        'Bei Problemen wende dich bitte an Miriam Waßmann.</p>'
+    )
+
+    # Info-Block zum Tool Quizmaster hinzufügen
+    tool_info = (
+        '<div style="background:#f0f9ff;padding:12px;border-radius:8px;margin:0 0 1rem 0;'
+        'font-size:0.85rem;color:#0c4a6e;border-left:3px solid #0284c7;">'
+        '<strong>Über Quizmaster:</strong> Das Tool Quizmaster wurde dafür gebaut, neue Quiz-Termine '
+        'bei der Pension Schmidt automatisch zu erkennen und direkt den spätmöglichsten Termin '
+        'für den Quiz-Abend zu buchen (zwischen 19:00 und 19:30 Uhr). Erst nach der Buchung gehen '
+        'die E-Mail-Anfragen an euch raus, ob ihr teilnehmen wollt.<br><br>'
+        '<strong>Warum ist das so?</strong> Bisher hat die Pension Schmidt die Quiz-Termine nicht '
+        'in regelmäßigen Abständen buchbar gemacht. Dadurch war ein ständiges Nachsehen erforderlich. '
+        'Oft waren die Plätze dann schon weg. Daher werden jetzt immer 5 Plätze automatisch gebucht. '
+        'Wenn nicht genügend Leute von uns zusammenkommen, dann storniert das Tool die Buchung von selbst. '
+        'Weitere Hinweise findest du im Tool.</div>'
+    )
+
+    body_html = automation_notice + tool_info + body_html
+
     if settings.email_dry_run:
         logger.info(f"[DRY-RUN] E-Mail an {to} | Betreff: {subject}\n{body_html}")
         return
@@ -235,3 +260,24 @@ def send_weekly_reminder(participant_name: str, email: str, event_title: str, ev
     <p>Falls du noch nicht geantwortet hast, bitte teil uns mit, ob du dabei bist. Danke!</p>
     """
     _send(email, f"Erinnerung: {event_title}", body)
+
+
+def send_maybe_timeout(participant_name: str, email: str, event_title: str, event_date: str, event_description: str = ""):
+    """
+    Wird gesendet, wenn Maybe-Teilnehmer nach 48 Stunden Frist nicht reagiert haben.
+    Informiert, dass ihre Nicht-Antwort als Absage gewertet wurde.
+    """
+    info = _event_info_block(event_title, event_date, event_description)
+    body = f"""
+    <p>Hallo {participant_name},</p>
+    <p>leider hast du auf unsere Erinnerung zur definitiven Entscheidung nicht reagiert.</p>
+    {info}
+    <div style="background:#fee2e2;padding:12px;border-radius:8px;margin:1rem 0;border-left:4px solid #ef4444;">
+        <p style="margin:0;"><strong style="color:#dc2626;">Dein Vielleicht wurde als Absage gewertet.</strong></p>
+    </div>
+    <p style="color:#6b7280;font-size:0.9rem;margin-top:0.5rem;">
+        Bei zukünftigen Events wirst du wieder benachrichtigt, wenn du dich wieder anmelden möchtest.
+    </p>
+    <p style="margin-top:1rem;">Wir hoffen, dich bei einem anderen Event begrüßen zu dürfen!</p>
+    """
+    _send(email, f"Absage bestätigt: {event_title}", body, include_unsubscribe=False)

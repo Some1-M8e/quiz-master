@@ -31,6 +31,10 @@ def init_db():
             conn.execute(text("ALTER TABLE events ADD COLUMN source VARCHAR(20) DEFAULT 'scraper'"))
         if "capacity" not in cols:
             conn.execute(text("ALTER TABLE events ADD COLUMN capacity INTEGER"))
+        if "force_keep" not in cols:
+            conn.execute(text("ALTER TABLE events ADD COLUMN force_keep INTEGER DEFAULT 0"))
+        if "force_keep_note" not in cols:
+            conn.execute(text("ALTER TABLE events ADD COLUMN force_keep_note VARCHAR(500)"))
         # Participants: notifications_enabled
         cols = [row[1] for row in conn.execute(text("PRAGMA table_info(participants)")).fetchall()]
         if "notifications_enabled" not in cols:
