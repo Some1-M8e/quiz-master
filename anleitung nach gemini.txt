@@ -1,0 +1,24 @@
+1. Die User Journey: Das Erlebnis aus Sicht des Teilnehmers
+Als Teilnehmer läuft der gesamte Prozess für dich vollautomatisch ab. Du musst dich nicht um Reservierungen kümmern, sondern reagierst einfach auf die Benachrichtigungen.
+
+Phase 1: Die Einladung (ca. 30 Tage vor dem Event)
+Was passiert? Sobald das System einen neuen Quiz-Abend in der Pension Schmidt findet (was alle 2 Stunden geprüft wird), reserviert es sofort einen Tisch für 5 Personen für die spätestmögliche verfügbare Uhrzeit (19:30, 19:15 oder 19:00 Uhr).
+
+Deine Aktion: Du erhältst eine Einladungs-E-Mail mit allen Event-Details (Titel, Datum, Uhrzeit).
+
+Was du tun musst: Klicke auf den persönlichen RSVP-Link in der Mail (dieser enthält einen einzigartigen Token) und wähle deinen Status:
+
+Ja: Du bist dabei! (Hier kannst du auch direkt angeben, ob du eine zusätzliche Begleitung mitbringst).
+
+Vielleicht (Maybe): Du hast Interesse, bist aber noch unsicher.
+
+Nein: Du kannst dieses Mal leider nicht.
+
+Bestätigung: Nach deiner Antwort erhältst du eine RSVP-Bestätigungs-Mail. Hinweis: Du kannst deine Antwort über den Link jederzeit flexibel ändern.
+
+Phase 2: Die Entscheidungsphase (7 bis 5 Tage vor dem Event)
+Falls du mit "Vielleicht" geantwortet hast: Du erhältst genau 7 Tage vor dem Event eine Erinnerungs-E-Mail. Du hast nun exakt 48 Stunden Zeit, dich final zu entscheiden.
+
+Falls du dich nicht entscheidest: Wenn du nach Ablauf der 48 Stunden (also 5 Tage vor dem Event) immer noch auf "Vielleicht" stehst, wirst du vom System automatisch auf "Nein" gesetzt, damit wir fair planen können.
+
+Stornierung: Sollte das Event mangels Teilnehmern storniert werden müssen, erhältst du eine Stornierungs-E-Mail.
