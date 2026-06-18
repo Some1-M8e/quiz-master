@@ -6,7 +6,7 @@ const STATUS_LABEL = { pending: "Offen", booked: "Gebucht, für 5 Personen reser
 
 function isSelfBookableEvent(title) {
   const t = title.toLowerCase();
-  return "wer wird pensionär" in t || "wer wird pensionar" in t;
+  return t.includes("wer wird pensionär") || t.includes("wer wird pensionar");
 }
 
 export default function EventDetail({ event, onBack }) {
@@ -49,15 +49,10 @@ export default function EventDetail({ event, onBack }) {
   return (
     <div>
       <button onClick={onBack} style={{ marginBottom: "1rem", background: "none", border: "none", cursor: "pointer", color: "#6366f1" }}>← Zurück</button>
-      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
-        <h3 style={{ margin: 0 }}>{displayTitle(detail.title)}</h3>
-        {selfBookable && (
-          <span style={{ background: "#f59e0b", color: "white", padding: "4px 10px", borderRadius: 12, fontSize: "0.75rem", fontWeight: "bold" }}>SELBST BUCHEN</span>
-        )}
-      </div>
+      <h3 style={{ margin: 0 }}>{displayTitle(detail.title)}</h3>
       <p style={{ color: "#6b7280" }}>{new Date(detail.event_date).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
 
-      {selfBookable && (
+      {selfBookable ? (
         <div style={{ background: "#fef3c7", padding: "1rem", borderRadius: 8, border: "1px solid #fcd34d", margin: "0.75rem 0" }}>
           <p style={{ margin: "0 0 0.5rem 0", fontWeight: "bold", color: "#92400e" }}>💡 Dieser Termin wird NICHT automatisch gebucht!</p>
           <p style={{ margin: 0, color: "#92400e", fontSize: "0.9rem" }}>
@@ -70,84 +65,86 @@ export default function EventDetail({ event, onBack }) {
             </a>
           )}
         </div>
-      )}
+      ) : (
+        <>
+          {detail.detail_url && (
+            <p style={{ marginTop: "0.4rem" }}>
+              <a href={detail.detail_url} target="_blank" rel="noopener noreferrer"
+                style={{ color: "#6366f1", fontSize: "0.9rem", textDecoration: "none" }}>
+                Veranstaltung bei Pension Schmidt ansehen →
+              </a>
+            </p>
+          )}
 
-      {!selfBookable && detail.detail_url && (
-        <p style={{ marginTop: "0.4rem" }}>
-          <a href={detail.detail_url} target="_blank" rel="noopener noreferrer"
-            style={{ color: "#6366f1", fontSize: "0.9rem", textDecoration: "none" }}>
-            Veranstaltung bei Pension Schmidt ansehen →
-          </a>
-        </p>
-      )}
-
-      {/* Admin-Info Block */}
-      <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#f0f9ff", borderRadius: 8, border: "1px solid #bae6fd" }}>
-        <div style={{ fontSize: "0.85rem", color: "#0c4a6e" }}>
-          <div><strong>Status:</strong> {STATUS_LABEL[detail.status] || detail.status}</div>
-          <div><strong>Ja-Stimmen:</strong> {adminDetail.yes_count} (benötigt mind. 4)</div>
-          <div><strong>Vielleicht:</strong> {adminDetail.maybe_count}</div>
-          <div><strong>Tage bis Event:</strong> {adminDetail.days_until}</div>
-        </div>
-
-        {/* Force Keep Button / Status */}
-        {adminDetail.force_keep ? (
-          <div style={{ marginTop: "0.75rem", padding: "0.5rem", background: "#dcfce7", borderRadius: 6, border: "1px solid #86efac" }}>
-            <div style={{ color: "#166534", fontWeight: "bold" }}>✓ Event zum Behalten markiert</div>
-            {adminDetail.force_keep_note && (
-              <div style={{ color: "#15803d", fontSize: "0.85rem", marginTop: 4 }}>{adminDetail.force_keep_note}</div>
-            )}
-            <button
-              onClick={() => handleForceKeep(false)}
-              disabled={saving}
-              style={{ marginTop: "0.5rem", padding: "0.35rem 0.75rem", background: "#ef4444", color: "white", border: "none", borderRadius: 4, cursor: "pointer", fontSize: "0.85rem" }}
-            >
-              Force Keep entfernen
-            </button>
-          </div>
-        ) : (
-          isBooked && (
-            <div style={{ marginTop: "0.75rem" }}>
-              <div style={{ padding: "0.5rem", background: "#fef3c7", borderRadius: 6, border: "1px solid #fcd34d", color: "#92400e", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
-                <div style={{ fontWeight: "bold", marginBottom: "0.25rem" }}>Automatische Stornierung:</div>
-                <div>
-                  {(() => {
-                    const eventDate = new Date(adminDetail.event_date);
-                    const day3 = new Date(eventDate); day3.setDate(day3.getDate() - 3);
-                    const fmt = d => d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
-                    if (adminDetail.days_until > 3) {
-                      return <span>In {adminDetail.days_until - 3} Tagen ({fmt(day3)}): Wenn bis dahin weniger als 4 Personen zugesagt haben storniert das Tool den Termin automatisch. Wenn du die Buchung trotzdem beibehalten willst, dann klicke auf "Trotzdem beibehalten".</span>;
-                    } else {
-                      return <span>Heute oder in {adminDetail.days_until} Tagen ({fmt(day3)}): Wenn bis dahin weniger als 4 Personen zugesagt haben storniert das Tool den Termin automatisch. Wenn du die Buchung trotzdem beibehalten willst, dann klicke auf "Trotzdem beibehalten".</span>;
-                    }
-                  })()}
-                </div>
-              </div>
-              <button
-                onClick={() => handleForceKeep(true)}
-                disabled={saving}
-                style={{ width: "100%", padding: "0.5rem 1rem", background: "#22c55e", color: "white", border: "none", borderRadius: 4, cursor: "pointer", fontSize: "0.9rem" }}
-              >
-                {saving ? "Speichere..." : "Trotzdem beibehalten"}
-              </button>
+          {/* Admin-Info Block */}
+          <div style={{ marginTop: "1rem", padding: "0.75rem", background: "#f0f9ff", borderRadius: 8, border: "1px solid #bae6fd" }}>
+            <div style={{ fontSize: "0.85rem", color: "#0c4a6e" }}>
+              <div><strong>Status:</strong> {STATUS_LABEL[detail.status] || detail.status}</div>
+              <div><strong>Ja-Stimmen:</strong> {adminDetail.yes_count} (benötigt mind. 4)</div>
+              <div><strong>Vielleicht:</strong> {adminDetail.maybe_count}</div>
+              <div><strong>Tage bis Event:</strong> {adminDetail.days_until}</div>
             </div>
-          )
-        )}
 
-        {/* Status Message */}
-        {message && (
-          <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: message.type === "success" ? "#dcfce7" : "#fee2e2", borderRadius: 6, color: message.type === "success" ? "#166534" : "#991b1b", fontSize: "0.85rem" }}>
-            {message.text}
+            {/* Force Keep Button / Status */}
+            {adminDetail.force_keep ? (
+              <div style={{ marginTop: "0.75rem", padding: "0.5rem", background: "#dcfce7", borderRadius: 6, border: "1px solid #86efac" }}>
+                <div style={{ color: "#166534", fontWeight: "bold" }}>✓ Event zum Behalten markiert</div>
+                {adminDetail.force_keep_note && (
+                  <div style={{ color: "#15803d", fontSize: "0.85rem", marginTop: 4 }}>{adminDetail.force_keep_note}</div>
+                )}
+                <button
+                  onClick={() => handleForceKeep(false)}
+                  disabled={saving}
+                  style={{ marginTop: "0.5rem", padding: "0.35rem 0.75rem", background: "#ef4444", color: "white", border: "none", borderRadius: 4, cursor: "pointer", fontSize: "0.85rem" }}
+                >
+                  Force Keep entfernen
+                </button>
+              </div>
+            ) : (
+              isBooked && (
+                <div style={{ marginTop: "0.75rem" }}>
+                  <div style={{ padding: "0.5rem", background: "#fef3c7", borderRadius: 6, border: "1px solid #fcd34d", color: "#92400e", fontSize: "0.85rem", marginBottom: "0.5rem" }}>
+                    <div style={{ fontWeight: "bold", marginBottom: "0.25rem" }}>Automatische Stornierung:</div>
+                    <div>
+                      {(() => {
+                        const eventDate = new Date(adminDetail.event_date);
+                        const day3 = new Date(eventDate); day3.setDate(day3.getDate() - 3);
+                        const fmt = d => d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
+                        if (adminDetail.days_until > 3) {
+                          return <span>In {adminDetail.days_until - 3} Tagen ({fmt(day3)}): Wenn bis dahin weniger als 4 Personen zugesagt haben storniert das Tool den Termin automatisch. Wenn du die Buchung trotzdem beibehalten willst, dann klicke auf "Trotzdem beibehalten".</span>;
+                        } else {
+                          return <span>Heute oder in {adminDetail.days_until} Tagen ({fmt(day3)}): Wenn bis dahin weniger als 4 Personen zugesagt haben storniert das Tool den Termin automatisch. Wenn du die Buchung trotzdem beibehalten willst, dann klicke auf "Trotzdem beibehalten".</span>;
+                        }
+                      })()}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleForceKeep(true)}
+                    disabled={saving}
+                    style={{ width: "100%", padding: "0.5rem 1rem", background: "#22c55e", color: "white", border: "none", borderRadius: 4, cursor: "pointer", fontSize: "0.9rem" }}
+                  >
+                    {saving ? "Speichere..." : "Trotzdem beibehalten"}
+                  </button>
+                </div>
+              )
+            )}
+
+            {/* Status Message */}
+            {message && (
+              <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: message.type === "success" ? "#dcfce7" : "#fee2e2", borderRadius: 6, color: message.type === "success" ? "#166534" : "#991b1b", fontSize: "0.85rem" }}>
+                {message.text}
+              </div>
+            )}
           </div>
-        )}
-      </div>
 
-      <p style={{ marginTop: "0.75rem" }}><strong>Gesamt Teilnehmer:</strong> {detail.total_attendees}</p>
+          <p style={{ marginTop: "0.75rem" }}><strong>Gesamt Teilnehmer:</strong> {detail.total_attendees}</p>
 
-      <Section title="Zugesagt" color="#22c55e" items={yes} showCompanions />
-      <Section title="Vielleicht" color="#f59e0b" items={maybe} />
-      <Section title="Abgesagt" color="#ef4444" items={no} />
-      <Section title="Ausstehend" color="#9ca3af" items={pending} />
+          <Section title="Zugesagt" color="#22c55e" items={yes} showCompanions />
+          <Section title="Vielleicht" color="#f59e0b" items={maybe} />
+          <Section title="Abgesagt" color="#ef4444" items={no} />
+          <Section title="Ausstehend" color="#9ca3af" items={pending} />
+        </>
+      )}
     </div>
   );
 }

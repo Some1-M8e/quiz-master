@@ -5,9 +5,27 @@ import { displayTitle } from "../utils";
 const STATUS_LABEL = { pending: "Offen", booked: "Gebucht", cancelled: "Storniert", ausverkauft: "Ausverkauft", teilweise_ausverkauft: "Begrenzt" };
 const STATUS_COLOR = { pending: "#f59e0b", booked: "#22c55e", cancelled: "#ef4444", ausverkauft: "#6b7280", teilweise_ausverkauft: "#f59e0b" };
 
+const TOOLTIP_FIRST_LINE = "Dieser Status zeigt euch, ob wir beim Anbieter bereits Plätze reserviert haben.";
+const TOOLTIP_SECOND_PART = "Die Reservierung erfolgt auch, wenn noch keiner von euch zugesagt hat. So können wir verhindern, dass wir keine Plätze mehr bekommen.";
+
+function Tooltip() {
+  const [show, setShow] = useState(false);
+  return (
+    <div style={{ position: "relative", display: "inline-block" }} onMouseEnter={() => setShow(true)} onMouseLeave={() => setShow(false)}>
+      <span style={{ background: "#9ca3af", color: "white", width: 16, height: 16, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.7rem", cursor: "help", fontWeight: "bold" }}>i</span>
+      {show && (
+        <div style={{ position: "absolute", top: "calc(100% + 5px)", left: 0, background: "#1f2937", color: "white", padding: "0.75rem", borderRadius: 6, fontSize: "0.75rem", width: "280px", zIndex: 1000, boxShadow: "0 4px 6px rgba(0,0,0,0.1)" }}>
+          <div>{TOOLTIP_FIRST_LINE}</div>
+          <div style={{ marginTop: "0.5rem" }}>{TOOLTIP_SECOND_PART}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function isSelfBookableEvent(title) {
   const t = title.toLowerCase();
-  return "wer wird pensionär" in t || "wer wird pensionar" in t;
+  return t.includes("wer wird pensionär") || t.includes("wer wird pensionar");
 }
 
 export default function EventList({ onSelect }) {
@@ -77,7 +95,13 @@ export default function EventList({ onSelect }) {
         Automatische Prüfung auf neue Termine läuft alle 2 Stunden. Zuletzt aktualisiert: {lastRun}
       </p>}
       {!loading && (
-        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", margin: "0.75rem 0 1.5rem 0", fontSize: "0.85rem" }}>
+        <div style={{ margin: "0.75rem 0 0.5rem 0", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <strong style={{ fontSize: "0.85rem", color: "#374151" }}>Reservierungsstatus beim Anbieter:</strong>
+          <Tooltip />
+        </div>
+      )}
+      {!loading && (
+        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", margin: "0 0 1.5rem 0", fontSize: "0.85rem" }}>
           <span style={{ display: "flex", alignItems: "center", gap: "0.35rem" }}>
             <span style={{ width: 12, height: 12, background: "#f59e0b", borderRadius: 3 }}></span> Offen / Wenige Plätze
           </span>
@@ -104,21 +128,20 @@ export default function EventList({ onSelect }) {
             <div style={{ flex: 1 }}>
               <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
                 <strong>{displayTitle(e.title)}</strong>
-                {selfBookable && (
-                  <span style={{ background: "#f59e0b", color: "white", padding: "2px 8px", borderRadius: 8, fontSize: "0.7rem", fontWeight: "bold" }}>SELBST BUCHEN</span>
-                )}
               </div>
               <div style={{ color: "#6b7280", fontSize: "0.9rem" }}>{new Date(e.event_date).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</div>
               {selfBookable ? (
-                <div style={{ color: "#92400e", fontSize: "0.8rem", marginTop: 2 }}>💡 Bitte selbst über den Buchungstool reservieren</div>
+                <div style={{ color: "#92400e", fontSize: "0.8rem", marginTop: 2 }}>💡 Bitte selbst über das Buchungstool reservieren</div>
               ) : (
                 <div style={{ color: "#6366f1", fontSize: "0.8rem", marginTop: 2 }}>Klicke für mehr Details</div>
               )}
             </div>
-            <div style={{ textAlign: "right" }}>
-              <span style={{ background: STATUS_COLOR[e.status], color: "white", padding: "2px 10px", borderRadius: 12, fontSize: "0.8rem" }}>{STATUS_LABEL[e.status]}</span>
-              {!selfBookable && <div style={{ marginTop: 4, fontSize: "0.85rem", color: "#374151" }}>{e.total_attendees} Personen</div>}
-            </div>
+            {!selfBookable && (
+              <div style={{ textAlign: "right" }}>
+                <span style={{ background: STATUS_COLOR[e.status], color: "white", padding: "2px 10px", borderRadius: 12, fontSize: "0.8rem" }}>{STATUS_LABEL[e.status]}</span>
+                <div style={{ marginTop: 4, fontSize: "0.85rem", color: "#374151" }}>{e.total_attendees} Personen</div>
+              </div>
+            )}
           </div>
         );
       })}
