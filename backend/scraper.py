@@ -142,8 +142,14 @@ def scrape_provider(provider: Provider, db: Session) -> list[dict]:
     return found_events
 
 
+def _is_excluded_from_booking(title: str) -> bool:
+    """Prüft ob ein Event von der automatischen Buchung ausgeschlossen ist."""
+    t = title.lower()
+    return "wer wird pensionär" in t or "wer wird pensionar" in t
+
+
 def run_scraper(db: Session):
-    from email_service import send_invitation
+    from email_service import send_invitation, send_event_found_notification
     from models import Participant, RSVP
 
     providers = db.query(Provider).all()
@@ -163,39 +169,60 @@ def run_scraper(db: Session):
             db.add(event)
             db.flush()
 
-            # Sofort buchen für 5 Personen (nur wenn Status "pending" = buchbar)
-            if ev["status"] == "pending":
-                import asyncio
-                from booking import book_event
-                success = asyncio.run(book_event(ev["detail_url"], ev["date"], ev["title"]))
-                if success:
-                    event.status = "booked"
-                    event.capacity = 5
-                    db.commit()
-                    logger.info(f"Event '{ev['title']}' am {ev['date'].strftime('%d.%m.')} SOFORT gebucht für 5 Personen")
+            # Prüfen ob Event von Buchung ausgeschlossen ist (z.B. "Wer wird Pensionär?")
+            is_excluded = _is_excluded_from_booking(ev["title"])
 
-                    # Einladungen an alle Quiz-Interessierten (wie bisher)
+            if ev["status"] == "pending":
+                if is_excluded:
+                    # Nur Info-Mail versenden, NICHT buchen
+                    event.status = "pending"  # Bleibt pending, wird nicht gebucht
+                    db.commit()
+                    logger.info(f"Event '{ev['title']}' am {ev['date'].strftime('%d.%m.')} - Info-Mail versendet (keine automatische Buchung)")
+
                     participants = db.query(Participant).filter_by(notifications_enabled=True).all()
                     for p in participants:
                         if not p.email:
                             continue
-                        rsvp = RSVP(event_id=event.id, participant_id=p.id)
-                        db.add(rsvp)
-                        db.flush()
-                        send_invitation(
+                        send_event_found_notification(
                             participant_name=p.name,
                             email=p.email,
                             event_title=event.title,
                             event_date=event.event_date.strftime("%d.%m.%Y"),
-                            token=rsvp.token,
                             event_description=event.description or "",
+                            detail_url=event.detail_url,
                         )
-                    db.commit()
-                    logger.info(f"Einladungen versandt für Event {event.id}")
+                    logger.info(f"Info-Mails versandt für Event {event.id}")
                 else:
-                    # Buchung fehlgeschlagen - Event trotzdem speichern für manuelle Bearbeitung
-                    db.commit()
-                    logger.warning(f"Event '{ev['title']}' am {ev['date'].strftime('%d.%m.')} NICHT gebucht (Buchung fehlgeschlagen) - manuell prüfen!")
+                    # Normale Buchung für 5 Personen
+                    import asyncio
+                    from booking import book_event
+                    success = asyncio.run(book_event(ev["detail_url"], ev["date"], ev["title"]))
+                    if success:
+                        event.status = "booked"
+                        event.capacity = 5
+                        db.commit()
+                        logger.info(f"Event '{ev['title']}' am {ev['date'].strftime('%d.%m.')} SOFORT gebucht für 5 Personen")
+
+                        participants = db.query(Participant).filter_by(notifications_enabled=True).all()
+                        for p in participants:
+                            if not p.email:
+                                continue
+                            rsvp = RSVP(event_id=event.id, participant_id=p.id)
+                            db.add(rsvp)
+                            db.flush()
+                            send_invitation(
+                                participant_name=p.name,
+                                email=p.email,
+                                event_title=event.title,
+                                event_date=event.event_date.strftime("%d.%m.%Y"),
+                                token=rsvp.token,
+                                event_description=event.description or "",
+                            )
+                        db.commit()
+                        logger.info(f"Einladungen versandt für Event {event.id}")
+                    else:
+                        db.commit()
+                        logger.warning(f"Event '{ev['title']}' am {ev['date'].strftime('%d.%m.')} NICHT gebucht (Buchung fehlgeschlagen) - manuell prüfen!")
             else:
                 # Event war ausverkauft/abgesagt — nur eintragen ohne Buchung
                 event.status = ev["status"]

@@ -281,3 +281,33 @@ def send_maybe_timeout(participant_name: str, email: str, event_title: str, even
     <p style="margin-top:1rem;">Wir hoffen, dich bei einem anderen Event begrüßen zu dürfen!</p>
     """
     _send(email, f"Absage bestätigt: {event_title}", body, include_unsubscribe=False)
+
+
+def send_event_found_notification(participant_name: str, email: str, event_title: str, event_date: str, event_description: str, detail_url: str):
+    """
+    Wird gesendet, wenn ein Event gefunden wurde das NICHT automatisch gebucht wird
+    (z.B. "Wer wird Pensionär?"). Informiert über den gefundenen Termin mit Link zur Buchung.
+    """
+    info = _event_info_block(event_title, event_date, event_description)
+    body = f"""
+    <p>Hallo {participant_name},</p>
+    <p>ein neuer Quiz-Termin wurde auf der Website der Pension Schmidt gefunden!</p>
+
+    <div style="background:#fef3c7;padding:12px;border-radius:8px;margin:1rem 0;border-left:4px solid #f59e0b;">
+        <p style="margin:0;"><strong style="color:#92400e;">Hinweis: Dieser Termin wird NICHT automatisch gebucht.</strong></p>
+        <p style="margin:8px 0 0 0;color:#92400e;">Wenn du teilnehmen möchtest, bitte selbst buchen über den Link unten.</p>
+    </div>
+
+    {info}
+
+    <p style="margin-top:1.5rem;">
+        <a href="{detail_url}" style="display:inline-block;padding:10px 20px;background:#2563eb;color:white;text-decoration:none;border-radius:6px;font-weight:bold;">
+            Zum Buchungstool
+        </a>
+    </p>
+
+    <p style="color:#6b7280;font-size:0.9rem;margin-top:1rem;">
+        Der Termin ist aktuell noch buchbar. Wir empfehlen, schnell zu sein – die Plätze sind begrenzt!
+    </p>
+    """
+    _send(email, f"Neuer Quiz-Termin gefunden: {event_title}", body, include_unsubscribe=False)
