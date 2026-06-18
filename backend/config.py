@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     organizer_name: str = "Miriam KI Tool"
     organizer_email: str = "miriam.wassmann@adesso.de"
     organizer_phone: str = "017696830342"
+    invite_token: str = "quizmaster"
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 

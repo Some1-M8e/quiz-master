@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { api } from "../api";
+import { participantSchema } from "../schemas";
+import Layout from "../components/Layout";
 
-export default function RegisterPage({ token }) {
+export default function RegisterPage() {
+  const { token } = useParams();
   const [valid, setValid] = useState(null);
   const [form, setForm] = useState({ name: "", email: "" });
   const [status, setStatus] = useState(null);
-  const [error, setError] = useState(null);
+  const [errors, setErrors] = useState({});
 
   useEffect(() => {
     api.get(`/invite/${token}`)
@@ -14,9 +18,19 @@ export default function RegisterPage({ token }) {
   }, [token]);
 
   const submit = async () => {
-    if (!form.name || !form.email) return;
+    setErrors({});
+    try {
+      participantSchema.parse(form);
+    } catch (err) {
+      const fieldErrors = {};
+      err.errors.forEach(e => {
+        fieldErrors[e.path[0]] = e.message;
+      });
+      setErrors(fieldErrors);
+      return;
+    }
+
     setStatus("loading");
-    setError(null);
     try {
       await api.post(`/invite/${token}`, form);
       setStatus("success");
@@ -29,18 +43,18 @@ export default function RegisterPage({ token }) {
     }
   };
 
-  if (valid === null) return <Wrapper><p>Prüfe Einladungslink…</p></Wrapper>;
-  if (valid === false) return <Wrapper><p style={{ color: "#ef4444" }}>Dieser Einladungslink ist ungültig oder abgelaufen.</p></Wrapper>;
+  if (valid === null) return <Layout title="Quiz-Master"><p>Prüfe Einladungslink…</p></Layout>;
+  if (valid === false) return <Layout title="Quiz-Master"><p style={{ color: "#ef4444" }}>Dieser Einladungslink ist ungültig oder abgelaufen.</p></Layout>;
 
   if (status === "success") return (
-    <Wrapper>
+    <Layout title="Quiz-Master">
       <p style={{ color: "#22c55e", fontWeight: "bold" }}>Willkommen, {form.name}!</p>
       <p>Du bist jetzt in der Quiz-Gruppe und wirst über neue Termine informiert.</p>
-    </Wrapper>
+    </Layout>
   );
 
   return (
-    <Wrapper>
+    <Layout title="Quiz-Master">
       <h3 style={{ marginTop: 0 }}>Quiz-Master beitreten</h3>
       <p style={{ color: "#6b7280" }}>Du wurdest eingeladen! Trag dich ein, um über Quiz-Abende informiert zu werden.</p>
       <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem", maxWidth: 360 }}>
@@ -48,33 +62,33 @@ export default function RegisterPage({ token }) {
           placeholder="Dein Name"
           value={form.name}
           onChange={(e) => setForm({ ...form, name: e.target.value })}
-          style={inputStyle}
+          style={inputStyle(errors.name)}
         />
+        {errors.name && <p style={{ color: "#ef4444", margin: "0 0 0.5rem 0", fontSize: "0.85rem" }}>{errors.name}</p>}
+
         <input
           placeholder="Deine E-Mail-Adresse"
           type="email"
           value={form.email}
           onChange={(e) => setForm({ ...form, email: e.target.value })}
-          style={inputStyle}
+          style={inputStyle(errors.email)}
         />
+        {errors.email && <p style={{ color: "#ef4444", margin: "0 0 0.5rem 0", fontSize: "0.85rem" }}>{errors.email}</p>}
+
         <button onClick={submit} disabled={status === "loading"} style={btnStyle}>
           {status === "loading" ? "Wird eingetragen…" : "Registrieren"}
         </button>
         {status === "duplicate" && <p style={{ color: "#ef4444", margin: 0 }}>Diese E-Mail ist bereits registriert.</p>}
         {status === "error" && <p style={{ color: "#ef4444", margin: 0 }}>Ein Fehler ist aufgetreten. Bitte versuche es erneut.</p>}
       </div>
-    </Wrapper>
+    </Layout>
   );
 }
 
-function Wrapper({ children }) {
-  return (
-    <div style={{ maxWidth: 820, margin: "0 auto", padding: "1.5rem 2rem", fontFamily: "sans-serif", background: "white", borderRadius: 16, boxShadow: "0 24px 64px rgba(0,0,0,0.45)" }}>
-      <h2 style={{ marginTop: 0 }}>Quiz-Master</h2>
-      {children}
-    </div>
-  );
-}
-
-const inputStyle = { padding: "0.5rem 0.75rem", border: "1px solid #d1d5db", borderRadius: 6, fontSize: "1rem" };
+const inputStyle = (hasError) => ({
+  padding: "0.5rem 0.75rem",
+  border: `1px solid ${hasError ? "#ef4444" : "#d1d5db"}`,
+  borderRadius: 6,
+  fontSize: "1rem",
+});
 const btnStyle = { padding: "0.6rem 1.2rem", background: "#6366f1", color: "white", border: "none", borderRadius: 8, cursor: "pointer", fontSize: "1rem" };

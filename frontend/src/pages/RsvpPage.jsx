@@ -1,23 +1,30 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { api } from "../api";
+import Layout from "../components/Layout";
 
-export default function RsvpPage({ token }) {
+export default function RsvpPage() {
+  const { token } = useParams();
   const [data, setData] = useState(null);
   const [companions, setCompanions] = useState(0);
   const [done, setDone] = useState(null);
   const [daysUntil, setDaysUntil] = useState(null);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api.get(`/rsvp/${token}`).then((res) => {
-      setData(res);
-      const eventDate = new Date(res.event_date);
-      const now = new Date();
-      const days = Math.ceil((eventDate - now) / (1000 * 60 * 60 * 24));
-      setDaysUntil(days);
-    }).catch((err) => {
-      setError("RSVP nicht gefunden oder Link ungültig.");
-    });
+    api.get(`/rsvp/${token}`)
+      .then((res) => {
+        setData(res);
+        const eventDate = new Date(res.event_date);
+        const now = new Date();
+        const days = Math.ceil((eventDate - now) / (1000 * 60 * 60 * 24));
+        setDaysUntil(days);
+      })
+      .catch((err) => {
+        setError("RSVP nicht gefunden oder Link ungültig.");
+      })
+      .finally(() => setLoading(false));
   }, [token]);
 
   const respond = async (response) => {
@@ -25,17 +32,15 @@ export default function RsvpPage({ token }) {
     try {
       await fetch(`http://localhost:8000/rsvp/${token}/${response}${params}`);
       setDone(response);
-    } catch {
-      setError("Fehler beim Speichern der Antwort.");
+    } catch (err) {
+      setError("Fehler beim Speichern der Antwort. Bitte versuche es erneut.");
     }
   };
 
-  if (error) return (
-    <div style={{ padding: "2rem", textAlign: "center" }}>
-      <p style={{ color: "#ef4444" }}>{error}</p>
-    </div>
-  );
-  if (!data) return <p style={{ padding: "2rem" }}>Lade...</p>;
+  if (error) return <Layout><p style={{ color: "#ef4444" }}>{error}</p></Layout>;
+  if (loading) return <Layout><p>Lade...</p></Layout>;
+  if (!data) return <Layout><p style={{ color: "#ef4444" }}>Daten konnten nicht geladen werden.</p></Layout>;
+
   if (done) {
     const messages = {
       yes: { title: "Zusage gespeichert!", text: "Wir freuen uns auf dich!" },
@@ -44,10 +49,10 @@ export default function RsvpPage({ token }) {
     };
     const m = messages[done];
     return (
-      <div style={{ padding: "2rem", textAlign: "center" }}>
+      <Layout>
         <h2>{m.title}</h2>
         <p>{m.text}</p>
-      </div>
+      </Layout>
     );
   }
 

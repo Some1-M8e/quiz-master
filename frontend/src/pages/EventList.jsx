@@ -31,16 +31,26 @@ function isSelfBookableEvent(title) {
 export default function EventList({ onSelect }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [lastRun, setLastRun] = useState("");
   const [scraperRunning, setScraperRunning] = useState(false);
   const [form, setForm] = useState({ name: "", email: "" });
-  const [subscribeState, setSubscribeState] = useState("idle"); // idle | loading | success | error
+  const [subscribeState, setSubscribeState] = useState("idle");
 
-  const loadEvents = () => {
-    Promise.all([
-      api.get("/events").then((data) => { setEvents(data); setLoading(false); }).catch(() => { setLoading(false); }),
-      api.get("/settings/last-scraper-run").then((data) => { setLastRun(data.last_run || ""); }).catch(() => {})
-    ]);
+  const loadEvents = async () => {
+    try {
+      const [eventsData, settingsData] = await Promise.all([
+        api.get("/events"),
+        api.get("/settings/last-scraper-run"),
+      ]);
+      setEvents(eventsData);
+      setLastRun(settingsData.last_run || "");
+      setError(null);
+    } catch (err) {
+      setError("Termine konnten nicht geladen werden. Bitte später nochmal versuchen.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { loadEvents(); }, []);
@@ -116,8 +126,9 @@ export default function EventList({ onSelect }) {
           </span>
         </div>
       )}
+      {error && <p style={{ color: "#ef4444", padding: "1rem", background: "#fee2e2", borderRadius: 8 }}>{error}</p>}
       {loading && <p>Lade Termine...</p>}
-      {!loading && events.length === 0 && (
+      {!loading && !error && events.length === 0 && (
         <p style={{ color: "#6b7280" }}>Noch keine Termine. Websites jetzt prüfen oder zuerst einen Anbieter konfigurieren.</p>
       )}
       {events.map((e) => {

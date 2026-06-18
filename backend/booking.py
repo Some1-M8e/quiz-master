@@ -46,17 +46,17 @@ async def _set_date(ctx, event_date: datetime) -> bool:
     date_iso = event_date.strftime("%Y-%m-%d")
     date_de = event_date.strftime("%d.%m.%Y")
 
-    # HTML5 date input
     try:
         inp = ctx.locator("input[type='date']").first
         await inp.wait_for(state="visible", timeout=5000)
         await inp.fill(date_iso)
         await inp.press("Tab")
         return True
-    except Exception:
-        pass
+    except TimeoutError:
+        logger.debug("HTML5 date input nicht sichtbar, versuche Text-Input")
+    except Exception as e:
+        logger.debug(f"Fehler bei HTML5 date input: {type(e).__name__}")
 
-    # Text-Input mit deutschem Format
     try:
         inp = ctx.locator("input[type='text']").first
         await inp.wait_for(state="visible", timeout=3000)
@@ -64,24 +64,25 @@ async def _set_date(ctx, event_date: datetime) -> bool:
         await inp.fill(date_de)
         await inp.press("Tab")
         return True
-    except Exception:
-        pass
+    except TimeoutError:
+        logger.warning("Text-Input für Datum nicht gefunden")
+    except Exception as e:
+        logger.warning(f"Fehler bei Text-Input: {type(e).__name__}: {e}")
 
-    logger.warning("Datum-Feld nicht gefunden")
     return False
 
 
 async def _set_guests(ctx, count: int = 4) -> bool:
-    # Select-Element
     try:
         sel = ctx.locator("select").first
         await sel.wait_for(state="visible", timeout=5000)
         await sel.select_option(str(count))
         return True
-    except Exception:
-        pass
+    except TimeoutError:
+        logger.debug("Select-Element nicht sichtbar, versuche Stepper")
+    except Exception as e:
+        logger.debug(f"Fehler bei Select: {type(e).__name__}")
 
-    # +/- Stepper
     try:
         plus = ctx.get_by_role("button", name="+").first
         current_el = ctx.locator("[data-guests],[data-count],[aria-valuetext]").first
@@ -89,10 +90,11 @@ async def _set_guests(ctx, count: int = 4) -> bool:
         for _ in range(count - current):
             await plus.click()
         return True
-    except Exception:
-        pass
+    except TimeoutError:
+        logger.warning("Stepper-Button nicht sichtbar")
+    except Exception as e:
+        logger.warning(f"Fehler bei Stepper: {type(e).__name__}: {e}")
 
-    logger.warning("Personenzahl-Feld nicht gefunden")
     return False
 
 

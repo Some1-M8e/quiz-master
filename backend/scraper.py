@@ -1,6 +1,7 @@
 import logging
 import asyncio
 import httpx
+import unicodedata
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
 from sqlalchemy.orm import Session
@@ -8,6 +9,13 @@ from models import Provider, Event
 from datetime import datetime, timezone, timedelta
 
 logger = logging.getLogger(__name__)
+
+
+def _normalize_title(text: str) -> str:
+    """Normalisiert Titel: Umlaute, Groß/Klein, Whitespace."""
+    text = unicodedata.normalize('NFD', text)
+    text = ''.join(c for c in text if unicodedata.category(c) != 'Mn')
+    return text.lower().strip()
 
 
 def _extract_detail_url(event_el, provider_url: str) -> str | None:
@@ -73,27 +81,15 @@ def scrape_provider(provider: Provider, db: Session) -> list[dict]:
 
         title = title_el.get_text(strip=True) if title_el else time_el.get_text(strip=True)
 
-        # Nur bestimmte Quiz-Typen verarbeiten
-        # Ziel-Quizze: Quiz Quiz Bang Bang, VerQUIZmeinnicht, Wer wird Pensionär?, VerQUIZmeinNerd (und Varianten)
         target_titles = (
             "Quiz Quiz Bang Bang",
             "VerQUIZmeinnicht",
             "Wer wird Pensionär?",
-            "Wer wird Pensionar?",
-            "wer wird pensionär?",
-            "wer wird pensionar?",
             "VerQUIZmeinNerd",
-            "verquizmeinnerd",
-            "VerQUIZMEINNerd",
         )
 
-        # Case-insensitive + Umlaut-normalisierte Prüfung
-        # ä -> ae, ö -> oe, ü -> ue, ß -> ss für robusten Vergleich
-        def normalize_title(t: str) -> str:
-            return t.lower().strip().replace('ä', 'ae').replace('ö', 'oe').replace('ü', 'ue').replace('ß', 'ss')
-
-        title_normalized = normalize_title(title)
-        target_normalized = [normalize_title(t) for t in target_titles]
+        title_normalized = _normalize_title(title)
+        target_normalized = [_normalize_title(t) for t in target_titles]
 
         if title_normalized not in target_normalized:
             logger.info(f"Event '{title}' wird ignoriert — nicht im Ziel-Filter")
@@ -144,8 +140,8 @@ def scrape_provider(provider: Provider, db: Session) -> list[dict]:
 
 def _is_excluded_from_booking(title: str) -> bool:
     """Prüft ob ein Event von der automatischen Buchung ausgeschlossen ist."""
-    t = title.lower()
-    return "wer wird pensionär" in t or "wer wird pensionar" in t
+    t = _normalize_title(title)
+    return "wer wird pensionar" in t
 
 
 def run_scraper(db: Session):

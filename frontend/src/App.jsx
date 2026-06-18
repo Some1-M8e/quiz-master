@@ -1,3 +1,4 @@
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useState } from "react";
 import EventList from "./pages/EventList";
 import EventDetail from "./pages/EventDetail";
@@ -5,19 +6,7 @@ import RsvpPage from "./pages/RsvpPage";
 import RegisterPage from "./pages/RegisterPage";
 import Settings from "./pages/Settings";
 
-export default function App() {
-  const path = window.location.pathname;
-
-  if (path.startsWith("/rsvp/")) {
-    const token = path.split("/")[2];
-    return <RsvpPage token={token} />;
-  }
-
-  if (path.startsWith("/register/")) {
-    const token = path.split("/")[2];
-    return <RegisterPage token={token} />;
-  }
-
+function MainApp() {
   const [page, setPage] = useState("events");
   const [selectedEvent, setSelectedEvent] = useState(null);
 
@@ -37,6 +26,18 @@ export default function App() {
       {page === "detail" && selectedEvent && <EventDetail event={selectedEvent} onBack={() => nav("events")} />}
       {page === "settings" && <Settings onNavigate={(p) => nav(p)} />}
     </div>
+  );
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<MainApp />} />
+        <Route path="/rsvp/:token" element={<RsvpPage />} />
+        <Route path="/register/:token" element={<RegisterPage />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
