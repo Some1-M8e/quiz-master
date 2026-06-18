@@ -74,7 +74,22 @@ def scrape_provider(provider: Provider, db: Session) -> list[dict]:
         title = title_el.get_text(strip=True) if title_el else time_el.get_text(strip=True)
 
         # Nur bestimmte Quiz-Typen verarbeiten
-        if title not in ("Quiz Quiz Bang Bang", "VerQUIZmeinnicht"):
+        # Ziel-Quizze: Quiz Quiz Bang Bang, VerQUIZmeinnicht, Wer wird Pensionär?, VerQUIZmeinNerd (und Varianten)
+        target_titles = (
+            "Quiz Quiz Bang Bang",
+            "VerQUIZmeinnicht",
+            "Wer wird Pensionär?",
+            "wer wird pensionär?",
+            "VerQUIZmeinNerd",
+            "verquizmeinnerd",
+            "VerQUIZMEINNerd",
+        )
+
+        # Case-insensitive Prüfung für flexible Treffer
+        title_normalized = title.lower().strip()
+        target_normalized = [t.lower() for t in target_titles]
+
+        if title not in target_titles and title_normalized not in target_normalized:
             logger.info(f"Event '{title}' wird ignoriert — nicht im Ziel-Filter")
             continue
 
