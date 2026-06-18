@@ -79,17 +79,23 @@ def scrape_provider(provider: Provider, db: Session) -> list[dict]:
             "Quiz Quiz Bang Bang",
             "VerQUIZmeinnicht",
             "Wer wird Pensionär?",
+            "Wer wird Pensionar?",
             "wer wird pensionär?",
+            "wer wird pensionar?",
             "VerQUIZmeinNerd",
             "verquizmeinnerd",
             "VerQUIZMEINNerd",
         )
 
-        # Case-insensitive Prüfung für flexible Treffer
-        title_normalized = title.lower().strip()
-        target_normalized = [t.lower() for t in target_titles]
+        # Case-insensitive + Umlaut-normalisierte Prüfung
+        # ä -> ae, ö -> oe, ü -> ue, ß -> ss für robusten Vergleich
+        def normalize_title(t: str) -> str:
+            return t.lower().strip().replace('ä', 'ae').replace('ö', 'oe').replace('ü', 'ue').replace('ß', 'ss')
 
-        if title not in target_titles and title_normalized not in target_normalized:
+        title_normalized = normalize_title(title)
+        target_normalized = [normalize_title(t) for t in target_titles]
+
+        if title_normalized not in target_normalized:
             logger.info(f"Event '{title}' wird ignoriert — nicht im Ziel-Filter")
             continue
 
