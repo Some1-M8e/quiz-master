@@ -5,6 +5,11 @@ import { displayTitle } from "../utils";
 const STATUS_LABEL = { pending: "Offen", booked: "Gebucht", cancelled: "Storniert", ausverkauft: "Ausverkauft", teilweise_ausverkauft: "Begrenzt" };
 const STATUS_COLOR = { pending: "#f59e0b", booked: "#22c55e", cancelled: "#ef4444", ausverkauft: "#6b7280", teilweise_ausverkauft: "#f59e0b" };
 
+function isSelfBookableEvent(title) {
+  const t = title.toLowerCase();
+  return "wer wird pensionär" in t || "wer wird pensionar" in t;
+}
+
 export default function EventList({ onSelect }) {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -91,20 +96,32 @@ export default function EventList({ onSelect }) {
       {!loading && events.length === 0 && (
         <p style={{ color: "#6b7280" }}>Noch keine Termine. Websites jetzt prüfen oder zuerst einen Anbieter konfigurieren.</p>
       )}
-      {events.map((e) => (
-        <div key={e.id} onClick={() => onSelect(e)}
-          style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "1rem", marginBottom: "0.75rem", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <div>
-            <strong>{displayTitle(e.title)}</strong>
-            <div style={{ color: "#6b7280", fontSize: "0.9rem" }}>{new Date(e.event_date).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</div>
-            <div style={{ color: "#6366f1", fontSize: "0.8rem", marginTop: 2 }}>Klicke für mehr Details</div>
+      {events.map((e) => {
+        const selfBookable = isSelfBookableEvent(e.title);
+        return (
+          <div key={e.id} onClick={() => onSelect(e)}
+            style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: "1rem", marginBottom: "0.75rem", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", background: selfBookable ? "#fefce8" : "white" }}>
+            <div style={{ flex: 1 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                <strong>{displayTitle(e.title)}</strong>
+                {selfBookable && (
+                  <span style={{ background: "#f59e0b", color: "white", padding: "2px 8px", borderRadius: 8, fontSize: "0.7rem", fontWeight: "bold" }}>SELBST BUCHEN</span>
+                )}
+              </div>
+              <div style={{ color: "#6b7280", fontSize: "0.9rem" }}>{new Date(e.event_date).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</div>
+              {selfBookable ? (
+                <div style={{ color: "#92400e", fontSize: "0.8rem", marginTop: 2 }}>💡 Bitte selbst über den Buchungstool reservieren</div>
+              ) : (
+                <div style={{ color: "#6366f1", fontSize: "0.8rem", marginTop: 2 }}>Klicke für mehr Details</div>
+              )}
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <span style={{ background: STATUS_COLOR[e.status], color: "white", padding: "2px 10px", borderRadius: 12, fontSize: "0.8rem" }}>{STATUS_LABEL[e.status]}</span>
+              {!selfBookable && <div style={{ marginTop: 4, fontSize: "0.85rem", color: "#374151" }}>{e.total_attendees} Personen</div>}
+            </div>
           </div>
-          <div style={{ textAlign: "right" }}>
-            <span style={{ background: STATUS_COLOR[e.status], color: "white", padding: "2px 10px", borderRadius: 12, fontSize: "0.8rem" }}>{STATUS_LABEL[e.status]}</span>
-            <div style={{ marginTop: 4, fontSize: "0.85rem", color: "#374151" }}>{e.total_attendees} Personen</div>
-          </div>
-        </div>
-      ))}
+        );
+      })}
 
       <div style={{ marginTop: "2rem", border: "1px solid #e5e7eb", borderRadius: 10, padding: "1.25rem", background: "#f9fafb" }}>
         <h4 style={{ margin: "0 0 0.25rem 0", fontSize: "1rem" }}>Neue Termine erhalten?</h4>

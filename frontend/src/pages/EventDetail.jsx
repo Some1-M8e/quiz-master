@@ -4,6 +4,11 @@ import { displayTitle } from "../utils";
 
 const STATUS_LABEL = { pending: "Offen", booked: "Gebucht, für 5 Personen reserviert", cancelled: "Storniert", ausverkauft: "Ausverkauft", teilweise_ausverkauft: "Begrenzt" };
 
+function isSelfBookableEvent(title) {
+  const t = title.toLowerCase();
+  return "wer wird pensionär" in t || "wer wird pensionar" in t;
+}
+
 export default function EventDetail({ event, onBack }) {
   const [detail, setDetail] = useState(null);
   const [adminDetail, setAdminDetail] = useState(null);
@@ -23,7 +28,6 @@ export default function EventDetail({ event, onBack }) {
         force_keep: enable,
       });
       setMessage({ type: "success", text: enable ? "Event zum Behalten markiert!" : "Force Keep entfernt!" });
-      // Admin-Details neu laden
       api.get(`/admin/events/${event.id}`).then(setAdminDetail);
     } catch (err) {
       setMessage({ type: "error", text: `Fehler: ${err.message}` });
@@ -40,13 +44,35 @@ export default function EventDetail({ event, onBack }) {
   const pending = adminDetail.rsvps.filter((r) => !r.response);
 
   const isBooked = detail.status === "booked";
+  const selfBookable = isSelfBookableEvent(detail.title);
 
   return (
     <div>
       <button onClick={onBack} style={{ marginBottom: "1rem", background: "none", border: "none", cursor: "pointer", color: "#6366f1" }}>← Zurück</button>
-      <h3>{displayTitle(detail.title)}</h3>
+      <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
+        <h3 style={{ margin: 0 }}>{displayTitle(detail.title)}</h3>
+        {selfBookable && (
+          <span style={{ background: "#f59e0b", color: "white", padding: "4px 10px", borderRadius: 12, fontSize: "0.75rem", fontWeight: "bold" }}>SELBST BUCHEN</span>
+        )}
+      </div>
       <p style={{ color: "#6b7280" }}>{new Date(detail.event_date).toLocaleDateString("de-DE", { weekday: "long", day: "2-digit", month: "long", year: "numeric" })}</p>
-      {detail.detail_url && (
+
+      {selfBookable && (
+        <div style={{ background: "#fef3c7", padding: "1rem", borderRadius: 8, border: "1px solid #fcd34d", margin: "0.75rem 0" }}>
+          <p style={{ margin: "0 0 0.5rem 0", fontWeight: "bold", color: "#92400e" }}>💡 Dieser Termin wird NICHT automatisch gebucht!</p>
+          <p style={{ margin: 0, color: "#92400e", fontSize: "0.9rem" }}>
+            Wenn du teilnehmen möchtest, bitte selbst über das Buchungstool reservieren.
+          </p>
+          {detail.detail_url && (
+            <a href={detail.detail_url} target="_blank" rel="noopener noreferrer"
+              style={{ display: "inline-block", marginTop: "0.75rem", padding: "8px 16px", background: "#2563eb", color: "white", textDecoration: "none", borderRadius: 6, fontWeight: "bold" }}>
+              Zum Buchungstool →
+            </a>
+          )}
+        </div>
+      )}
+
+      {!selfBookable && detail.detail_url && (
         <p style={{ marginTop: "0.4rem" }}>
           <a href={detail.detail_url} target="_blank" rel="noopener noreferrer"
             style={{ color: "#6366f1", fontSize: "0.9rem", textDecoration: "none" }}>
