@@ -178,7 +178,7 @@ def run_scraper(db: Session):
                     participants = db.query(Participant).filter_by(notifications_enabled=True).all()
                     for p in participants:
                         if not p.email:
-                            continue  # Keine E-Mail, keine Einladung
+                            continue
                         rsvp = RSVP(event_id=event.id, participant_id=p.id)
                         db.add(rsvp)
                         db.flush()
@@ -192,6 +192,10 @@ def run_scraper(db: Session):
                         )
                     db.commit()
                     logger.info(f"Einladungen versandt für Event {event.id}")
+                else:
+                    # Buchung fehlgeschlagen - Event trotzdem speichern für manuelle Bearbeitung
+                    db.commit()
+                    logger.warning(f"Event '{ev['title']}' am {ev['date'].strftime('%d.%m.')} NICHT gebucht (Buchung fehlgeschlagen) - manuell prüfen!")
             else:
                 # Event war ausverkauft/abgesagt — nur eintragen ohne Buchung
                 event.status = ev["status"]
