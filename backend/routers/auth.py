@@ -62,7 +62,9 @@ def get_last_scraper_run(db: Session = Depends(get_db)):
     s = db.query(Setting).filter_by(key="last_scraper_run").first()
     if s and s.value:
         try:
+            from zoneinfo import ZoneInfo
             dt = datetime.fromisoformat(s.value.replace("Z", "+00:00"))
+            dt = dt.astimezone(ZoneInfo("Europe/Berlin"))
             return {"last_run": dt.strftime("%d.%m.%Y %H:%M Uhr")}
         except Exception:
             pass
