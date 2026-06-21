@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+const APP_PASSWORD = import.meta.env.VITE_APP_PASSWORD || "";
+
 const apps = [
   {
     name: "Quiz-Master",
@@ -27,7 +29,7 @@ export default function LandingPage() {
 
   const handleLogin = (e) => {
     e.preventDefault();
-    if (password === "takkatukkaland") {
+    if (APP_PASSWORD && password === APP_PASSWORD) {
       setUnlocked(true);
       setError("");
     } else {
