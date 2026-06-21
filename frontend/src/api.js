@@ -1,4 +1,5 @@
-const BASE = "http://localhost:8000";
+// Relative URLs – werden von Nginx an das Backend weitergeleitet
+const BASE = "";
 
 async function handleResponse(r) {
   const text = await r.text();

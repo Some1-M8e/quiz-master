@@ -174,6 +174,9 @@ def send_booking_warning(event_title: str, event_date: str, yes_count: int, mayb
     <p style="color:#6b7280;font-size:0.9rem;margin-top:0.5rem;">
         Vielleicht-Teilnehmer haben 48 Stunden Zeit sich definitiv zu entscheiden. Ohne Antwort werden sie automatisch als Absage gewertet.
     </p>
+    <p style="color:#6b7280;font-size:0.9rem;margin-top:0.5rem;">
+        Jeder kann die Buchung aber auf "Beibehalten" stellen – egal wie viele Teilnehmer es gibt.
+    </p>
     <p style="margin-top:1rem;">Danke für dein Verständnis!</p>
     """
     for p in participants:

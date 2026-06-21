@@ -30,7 +30,7 @@ export default function RsvpPage() {
   const respond = async (response) => {
     const params = response === "yes" ? `?companions=${companions}` : "";
     try {
-      await fetch(`http://localhost:8000/rsvp/${token}/${response}${params}`);
+      await api.get(`/rsvp/${token}/${response}` + params);
       setDone(response);
     } catch (err) {
       setError("Fehler beim Speichern der Antwort. Bitte versuche es erneut.");
@@ -102,7 +102,7 @@ export default function RsvpPage() {
       )}
       <p style={{ marginTop: "2rem", paddingTop: "1rem", borderTop: "1px solid #e5e7eb", fontSize: "0.85rem", color: "#9ca3af" }}>
         Du erhältst diese E-Mail weil du als Quiz-Interessierter eingetragen bist.{" "}
-        <a href={`http://localhost:8000/unsubscribe/${encodeURIComponent(data.participant_email || "")}`} style={{ color: "#6366f1" }}>
+        <a href={`/unsubscribe/${encodeURIComponent(data.participant_email || "")}`} style={{ color: "#6366f1" }}>
           Benachrichtigungen abbestellen
         </a>
       </p>

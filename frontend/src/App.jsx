@@ -14,7 +14,7 @@ function QuizMasterApp() {
 
   const nav = (p, extra = null) => {
     setPage(p);
-    if (extra !== null) setSelectedEvent(extra);
+    setSelectedEvent(extra !== null ? extra : null);
   };
 
   return (
@@ -39,8 +39,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/landing" element={<LandingPage />} />
-        <Route path="/quiz-master" element={<QuizMasterApp />} />
-        <Route path="/quiz-master/*" element={<QuizMasterApp />} />
+        <Route path="/quiz-master*" element={<QuizMasterApp />} />
         <Route path="/rsvp/:token" element={<RsvpPage />} />
         <Route path="/register/:token" element={<RegisterPage />} />
         <Route path="*" element={<Navigate to="/landing" replace />} />

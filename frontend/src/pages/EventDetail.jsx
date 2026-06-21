@@ -16,19 +16,21 @@ export default function EventDetail({ event, onBack }) {
   const [message, setMessage] = useState(null);
 
   useEffect(() => {
-    api.get(`/events/${event.id}`).then(setDetail);
-    api.get(`/admin/events/${event.id}`).then(setAdminDetail);
+    api.get(`/events/${event.id}`).then((d) => {
+      setDetail(d);
+      setAdminDetail(d);
+    });
   }, [event.id]);
 
-  const handleForceKeep = async (enable) => {
+  const handleBook = async (enable) => {
     setSaving(true);
     setMessage(null);
     try {
-      await api.put(`/admin/events/${event.id}/force-keep`, {
+      await api.put(`/events/${event.id}/force-keep`, {
         force_keep: enable,
       });
-      setMessage({ type: "success", text: enable ? "Event zum Behalten markiert!" : "Force Keep entfernt!" });
-      api.get(`/admin/events/${event.id}`).then(setAdminDetail);
+      setMessage({ type: "success", text: enable ? "Buchung gesichert! Das Event bleibt auch mit weniger als 4 Teilnehmern bestehen." : "Buchungsentlastung entfernt." });
+      api.get(`/events/${event.id}`).then((d) => { setDetail(d); setAdminDetail(d); });
     } catch (err) {
       setMessage({ type: "error", text: `Fehler: ${err.message}` });
     } finally {
@@ -85,19 +87,19 @@ export default function EventDetail({ event, onBack }) {
               <div><strong>Tage bis Event:</strong> {adminDetail.days_until}</div>
             </div>
 
-            {/* Force Keep Button / Status */}
+            {/* Buchung sichern */}
             {adminDetail.force_keep ? (
               <div style={{ marginTop: "0.75rem", padding: "0.5rem", background: "#dcfce7", borderRadius: 6, border: "1px solid #86efac" }}>
-                <div style={{ color: "#166534", fontWeight: "bold" }}>✓ Event zum Behalten markiert</div>
+                <div style={{ color: "#166534", fontWeight: "bold" }}>✓ Buchung gesichert!</div>
                 {adminDetail.force_keep_note && (
                   <div style={{ color: "#15803d", fontSize: "0.85rem", marginTop: 4 }}>{adminDetail.force_keep_note}</div>
                 )}
                 <button
-                  onClick={() => handleForceKeep(false)}
+                  onClick={() => handleBook(false)}
                   disabled={saving}
                   style={{ marginTop: "0.5rem", padding: "0.35rem 0.75rem", background: "#ef4444", color: "white", border: "none", borderRadius: 4, cursor: "pointer", fontSize: "0.85rem" }}
                 >
-                  Force Keep entfernen
+                  Buchung nicht mehr sichern
                 </button>
               </div>
             ) : (
@@ -111,19 +113,19 @@ export default function EventDetail({ event, onBack }) {
                         const day3 = new Date(eventDate); day3.setDate(day3.getDate() - 3);
                         const fmt = d => d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" });
                         if (adminDetail.days_until > 3) {
-                          return <span>In {adminDetail.days_until - 3} Tagen ({fmt(day3)}): Wenn bis dahin weniger als 4 Personen zugesagt haben storniert das Tool den Termin automatisch. Wenn du die Buchung trotzdem beibehalten willst, dann klicke auf "Trotzdem beibehalten".</span>;
+                          return <span>In {adminDetail.days_until - 3} Tagen ({fmt(day3)}): Wenn bis dahin weniger als 4 Personen zugesagt haben storniert das Tool den Termin automatisch. Jeder kann die Buchung aber auf "Beibehalten" stellen – egal wie viele Teilnehmer es gibt.</span>;
                         } else {
-                          return <span>Heute oder in {adminDetail.days_until} Tagen ({fmt(day3)}): Wenn bis dahin weniger als 4 Personen zugesagt haben storniert das Tool den Termin automatisch. Wenn du die Buchung trotzdem beibehalten willst, dann klicke auf "Trotzdem beibehalten".</span>;
+                          return <span>Heute oder in {adminDetail.days_until} Tagen ({fmt(day3)}): Wenn bis dahin weniger als 4 Personen zugesagt haben storniert das Tool den Termin automatisch. Jeder kann die Buchung aber auf "Beibehalten" stellen – egal wie viele Teilnehmer es gibt.</span>;
                         }
                       })()}
                     </div>
                   </div>
                   <button
-                    onClick={() => handleForceKeep(true)}
+                    onClick={() => handleBook(true)}
                     disabled={saving}
                     style={{ width: "100%", padding: "0.5rem 1rem", background: "#22c55e", color: "white", border: "none", borderRadius: 4, cursor: "pointer", fontSize: "0.9rem" }}
                   >
-                    {saving ? "Speichere..." : "Trotzdem beibehalten"}
+                    {saving ? "Speichere..." : "Buchung sichern"}
                   </button>
                 </div>
               )
