@@ -94,8 +94,17 @@ async def _set_date(ctx, event_date: datetime) -> bool:
             except TimeoutError:
                 continue
 
-        # 3. JavaScript - alle Inputs durchgehen
+        # 3. JavaScript - HTML-Inhalt und alle Elemente auslesen
         try:
+            # Erst den gesamten HTML-Inhalt loggen
+            html = await c.evaluate("() => document.body.innerHTML")
+            logger.info(f"DEBUG {ctx_name} HTML-Inhalt (erste 1000 Zeichen): {html[:1000] if html else 'EMPTY'}")
+
+            # Alle Elemente auflisten
+            all_tags = await c.evaluate("() => [...document.querySelectorAll('*')].map(e => e.tagName).filter((t,i,a)=>!a.includes(t,i+1))")
+            logger.info(f"DEBUG {ctx_name} Alle Tags im Dokument: {all_tags}")
+
+            # Dann versuchen, Inputs zu setzen
             js_code = f"""() => {{
                 const inputs = document.querySelectorAll('input[type="date"], input[type="text"]');
                 console.log('Found inputs:', inputs.length);
