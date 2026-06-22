@@ -77,7 +77,31 @@ async def _set_date(ctx, event_date: datetime) -> bool:
         except Exception as e:
             logger.debug(f"Fehler bei Text-Input ({selector}): {type(e).__name__}")
 
-    # 3. Kalender-Button klicken, dann Datum wählen
+    # 3. JavaScript: Datum direkt ins Formular setzen
+    try:
+        js_code = f"""
+        () => {{
+            const inputs = document.querySelectorAll('input[type="date"], input[type="text"]');
+            for (let inp of inputs) {{
+                if (inp.offsetParent !== null) {{  // sichtbar
+                    inp.value = '{date_iso}';
+                    inp.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                    inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                    return true;
+                }}
+            }}
+            return false;
+        }}
+        """
+        result = await ctx.evaluate(js_code)
+        if result:
+            logger.info(f"Datum per JavaScript gesetzt: {date_iso}")
+            await ctx.wait_for_timeout(1000)
+            return True
+    except Exception as e:
+        logger.debug(f"JavaScript-Datum fehlgeschlagen: {e}")
+
+    # 4. Kalender-Button klicken, dann Datum wählen
     try:
         calendar_btn = ctx.get_by_role("button", name="Kalender").first
         if not await calendar_btn.is_visible(timeout=2000):
