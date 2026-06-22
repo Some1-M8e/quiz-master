@@ -152,18 +152,32 @@ def run_scraper(db: Session):
     for provider in providers:
         logger.info(f"Prüfe Anbieter: {provider.name} ({provider.url})")
         new_events = scrape_provider(provider, db)
-        for ev in new_events:
-            event = Event(
-                provider_id=provider.id,
-                title=ev["title"],
-                event_date=ev["date"],
-                detail_url=ev["detail_url"],
-                description=ev.get("description") or None,
-                status=ev["status"],
-                created_at=datetime.now(timezone.utc),
-            )
-            db.add(event)
-            db.flush()
+
+        # Auch bestehende pending Events buchen (wenn Scraper sie nicht neu findet)
+        pending_events = db.query(Event).filter_by(provider_id=provider.id, status="pending").all()
+        events_to_process = new_events + [{"existing_id": e.id, "title": e.title, "date": e.event_date, "detail_url": e.detail_url, "description": e.description or "", "status": e.status} for e in pending_events]
+
+        for ev in events_to_process:
+            # Prüfen ob Event schon existiert (existing_id gesetzt)
+            if "existing_id" in ev and ev["existing_id"]:
+                event = db.get(Event, ev["existing_id"])
+                if not event:
+                    continue
+                logger.info(f"Verarbeite bestehendes Event {event.id}: {ev['title']} am {ev['date'].strftime('%d.%m.')}")
+            else:
+                # Neues Event erstellen
+                event = Event(
+                    provider_id=provider.id,
+                    title=ev["title"],
+                    event_date=ev["date"],
+                    detail_url=ev["detail_url"],
+                    description=ev.get("description") or None,
+                    status=ev["status"],
+                    created_at=datetime.now(timezone.utc),
+                )
+                db.add(event)
+                db.flush()
+                logger.info(f"Neues Event erstellt: {ev['title']} am {ev['date'].strftime('%d.%m.')}")
 
             # Prüfen ob Event von Buchung ausgeschlossen ist (z.B. "Wer wird Pensionär?")
             is_excluded = _is_excluded_from_booking(ev["title"])
