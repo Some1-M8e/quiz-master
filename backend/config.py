@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     app_url: str = "http://localhost:8000"
     secret_key: str = "change-me"
     database_url: str = "sqlite:///./quiz_master.db"
+    cors_origins: str = "http://localhost:5173,http://localhost:5174"
     organizer_name: str = "Miriam KI Tool"
     organizer_email: str = "miriam.wassmann@adesso.de"
     organizer_phone: str = "017696830342"

@@ -40,6 +40,11 @@ def _event_info_block(event_title: str, event_date: str, event_description: str)
 
 
 def _send(to: str, subject: str, body_html: str, include_unsubscribe: bool = True):
+    """E-Mail synchron senden (blockierend).
+
+    Wird direkt im Scheduler-Jobs verwendet. Für Request-Handler sollte
+    _send_in_background() genutzt werden, um den Request-Thread nicht zu blockieren.
+    """
     # Automatisierungs-Hinweis vor der Begrüßung hinzufügen
     automation_notice = (
         '<p style="background:#fef3c7;padding:8px 12px;border-radius:4px;margin:0 0 1rem 0;'
@@ -83,6 +88,19 @@ def _send(to: str, subject: str, body_html: str, include_unsubscribe: bool = Tru
         server.starttls()
         server.login(settings.smtp_user, settings.smtp_password)
         server.sendmail(settings.smtp_user, to, msg.as_string())
+
+
+def _send_in_background(background_tasks, to: str, subject: str, body_html: str, include_unsubscribe: bool = True):
+    """E-Mail asynchron senden – blockiert den Request-Thread nicht."""
+    background_tasks.add_task(_send, to, subject, body_html, include_unsubscribe)
+
+
+def send_async(background_tasks, send_func, *args, **kwargs):
+    """E-Mail asynchron über FastAPI BackgroundTasks senden.
+
+    Wrapper um BackgroundTasks.add_task() – macht den Aufruf im Router lesbarer.
+    """
+    background_tasks.add_task(send_func, *args, **kwargs)
 
 
 def send_invitation(participant_name: str, email: str, event_title: str, event_date: str, token: str, event_description: str = ""):

@@ -27,7 +27,7 @@ class TestParticipants:
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
 
-    @patch("main.send_participant_welcome")
+    @patch("routers.participants.send_participant_welcome")
     def test_create_participant(self, mock, client):
         resp = client.post("/participants", json={"name": "Max", "email": "max@test.de"})
         assert resp.status_code == 201
@@ -35,17 +35,17 @@ class TestParticipants:
         assert mock.called
 
     def test_duplicate_email_rejected(self, client):
-        with patch("main.send_participant_welcome"):
+        with patch("routers.participants.send_participant_welcome"):
             client.post("/participants", json={"name": "Max", "email": "max@test.de"})
         resp = client.post("/participants", json={"name": "Max2", "email": "max@test.de"})
         assert resp.status_code == 409
 
     def test_delete_participant(self, client):
-        with patch("main.send_participant_removed"):
-            resp = client.post("/participants", json={"name": "Max", "email": "max@test.de"})
-            pid = resp.json()["id"]
-        resp = client.delete(f"/participants/{pid}")
-        assert resp.status_code == 204
+        resp = client.post("/participants", json={"name": "Max", "email": "max@test.de"})
+        pid = resp.json()["id"]
+        with patch("routers.participants.send_participant_removed"):
+            resp = client.delete(f"/participants/{pid}")
+            assert resp.status_code == 204
 
 
 class TestEvents:
@@ -72,14 +72,14 @@ class TestAuth:
         assert resp.status_code == 200
         assert resp.json()["valid"] is True
 
-    @patch("main.send_participant_welcome")
+    @patch("routers.auth.send_participant_welcome")
     def test_register_via_invite(self, mock, client):
         resp = client.post("/invite/quizmaster", json={"name": "Max", "email": "max@test.de"})
         assert resp.status_code == 201
         assert mock.called
 
     def test_register_duplicate(self, client):
-        with patch("main.send_participant_welcome"):
+        with patch("routers.auth.send_participant_welcome"):
             client.post("/invite/quizmaster", json={"name": "Max", "email": "max@test.de"})
         resp = client.post("/invite/quizmaster", json={"name": "Max2", "email": "max@test.de"})
         assert resp.status_code == 409

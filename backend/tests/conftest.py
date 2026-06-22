@@ -36,17 +36,42 @@ def test_db():
         pass
 
 
+def _admin_token():
+    from config import settings
+    return settings.secret_key
+
+
 @pytest.fixture
 def client(test_db):
-    """FastAPI TestClient mit derselben DB-Session."""
+    """FastAPI TestClient mit derselben DB-Session.
+
+    Der Scheduler wird im Test-Modus komplett deaktiviert, um
+    Konflikte zwischen mehreren TestClient-Instanzen zu vermeiden.
+    Email-Versand wird gemockt, damit kein echter SMTP-Server benötigt wird.
+    """
     from main import app
     from database import get_db
+    import scheduler as sched
+    from email_service import (
+        send_participant_welcome, send_invitation, send_rsvp_confirmation,
+        send_booking_confirmation, send_cancellation, send_booking_warning,
+        send_event_found_notification, send_participant_removed, send_reminder,
+        send_maybe_reminder, send_weekly_reminder, send_maybe_timeout,
+    )
 
-    # Override so TestClient dieselbe DB nutzt
-    app.dependency_overrides[get_db] = lambda: test_db
-    with TestClient(app) as c:
-        yield c
-    app.dependency_overrides.clear()
+    # Scheduler im Test-Modus komplett deaktivieren
+    original_start = sched.start_scheduler
+    sched.start_scheduler = lambda: None
+
+    # Email-Versand für diesen Test vollständig mocken
+    with patch("email_service._send") as mock_send:
+        # Override so TestClient dieselbe DB nutzt
+        app.dependency_overrides[get_db] = lambda: test_db
+
+        with TestClient(app, headers={"Authorization": f"Bearer {_admin_token()}"}) as c:
+            yield c
+        app.dependency_overrides.clear()
+    sched.start_scheduler = original_start
 
 
 @pytest.fixture
