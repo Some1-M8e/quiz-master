@@ -330,53 +330,52 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
                 logger.info("Test abgeschlossen - alle Felder ausgefüllt, Confirm-Button nicht geklickt")
                 return True
 
-            # Debug: Alle Buttons im Formular auflisten
+            # Debug: Alle Buttons vor "Weiter" auflisten
             try:
                 buttons = await ctx.evaluate("""() => {
                     const btns = [...document.querySelectorAll('button')];
-                    return btns.map(b => ({
-                        text: (b.textContent || '').trim(),
-                        class: b.className || '',
-                        type: b.type || ''
-                    }))
+                    return btns.map(b => ({ text: (b.textContent || '').trim(), class: b.className || '' }))
                 }""")
-                logger.info(f"DEBUG Submit-Buttons: {buttons}")
+                logger.info(f"DEBUG Buttons vor Weiter: {buttons}")
             except Exception as e:
                 logger.warning(f"Button-Debug fehlgeschlagen: {e}")
 
-            # Formular absenden
-            submitted = False
-            for btn_name in ("Weiter", "Reservieren", "Buchen", "Bestätigen", "Confirm", "Absenden"):
-                try:
-                    btn = ctx.get_by_role("button", name=btn_name).first
-                    if not await btn.is_visible(timeout=1500):
-                        btn = ctx.get_by_text(btn_name, exact=False).first
-                    if await btn.is_visible(timeout=1500):
-                        await btn.click()
-                        submitted = True
-                        logger.info(f"Submit-Button '{btn_name}' geklickt")
-                        break
-                except Exception:
-                    pass
+            # Schritt 8: "Weiter" klicken (geht zur Kontaktseite)
+            logger.info("Schritt 8: Weiter-Button klicken")
+            weiter_btn = ctx.get_by_text("Weiter", exact=False).first
+            if not await weiter_btn.is_visible(timeout=3000):
+                logger.error("Weiter-Button nicht gefunden")
+                return False
+            await weiter_btn.click()
+            await page.wait_for_timeout(4000)
+            logger.info("Weiter geklickt - warte auf Kontaktseite")
 
-            if not submitted:
-                # Suche nach allen Buttons und klicke den ersten sichtbaren
-                for selector in ["button.is-primary", ".button.submit", "button:not([type='button'])"]:
-                    try:
-                        btn = ctx.locator(selector).first
-                        if await btn.is_visible(timeout=2000):
-                            await btn.click()
-                            submitted = True
-                            logger.info(f"Submit-Button ({selector}) geklickt")
-                            break
-                    except Exception:
-                        continue
+            await page.screenshot(path="screenshots/test_08_kontaktseite.png")
 
-            if not submitted:
-                logger.error("Kein Submit-Button gefunden")
+            # Debug: Buttons auf der Kontaktseite
+            try:
+                buttons = await ctx.evaluate("""() => {
+                    const btns = [...document.querySelectorAll('button')];
+                    return btns.map(b => ({ text: (b.textContent || '').trim(), class: b.className || '' }))
+                }""")
+                logger.info(f"DEBUG Buttons auf Kontaktseite: {buttons}")
+            except Exception as e:
+                logger.warning(f"Button-Debug fehlgeschlagen: {e}")
+
+            # Schritt 9: Exakt nach "Confirm" suchen (nicht "Weiter"!)
+            logger.info("Schritt 9: Nach 'Confirm'-Button suchen...")
+            confirm_btn = ctx.get_by_text("Confirm", exact=True).first
+            if not await confirm_btn.is_visible(timeout=5000):
+                logger.error("Confirm-Button NICHT gefunden - Buchung wurde NICHT abgeschlossen!")
                 return False
 
-            await page.wait_for_timeout(3000)
+            await confirm_btn.click()
+            logger.info("Confirm-Button geklickt!")
+
+            await page.wait_for_timeout(5000)
+            await page.screenshot(path=f"screenshots/book_done_{event_date.strftime('%Y%m%d')}.png")
+            logger.info(f"Buchung abgeschlossen: {event_date.strftime('%d.%m.%Y')} um {chosen}")
+            return True
             await page.screenshot(path=f"screenshots/book_done_{event_date.strftime('%Y%m%d')}.png")
             logger.info(f"Buchung abgeschlossen: {event_date.strftime('%d.%m.%Y')} um {chosen}")
             return True
