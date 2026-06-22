@@ -184,6 +184,9 @@ async def _available_slots(ctx) -> list[str]:
             disabled = await slot.get_attribute("disabled")
             aria_disabled = await slot.get_attribute("aria-disabled")
             cls = await slot.get_attribute("class") or ""
+            # Debug: Klasse ausgeben
+            logger.debug(f"Slot {t}: disabled={disabled}, aria-disabled={aria_disabled}, class='{cls}'")
+
             # Prüfen ob Slot wirklich verfügbar ist
             if (disabled is None and
                 aria_disabled != "true" and
@@ -194,6 +197,7 @@ async def _available_slots(ctx) -> list[str]:
                 available.append(t)
         except Exception:
             pass
+    logger.info(f"Verfügbare Slots (roh): {available}")
     return available
 
 
