@@ -46,29 +46,57 @@ async def _set_date(ctx, event_date: datetime) -> bool:
     date_iso = event_date.strftime("%Y-%m-%d")
     date_de = event_date.strftime("%d.%m.%Y")
 
+    # Mehr Wartezeit nach Resmio-Öffnung
+    await ctx.wait_for_timeout(4000)
+
+    # 1. HTML5 date input
     try:
         inp = ctx.locator("input[type='date']").first
         await inp.wait_for(state="visible", timeout=5000)
         await inp.fill(date_iso)
         await inp.press("Tab")
+        logger.info(f"Datum gesetzt (HTML5): {date_iso}")
         return True
     except TimeoutError:
         logger.debug("HTML5 date input nicht sichtbar, versuche Text-Input")
     except Exception as e:
         logger.debug(f"Fehler bei HTML5 date input: {type(e).__name__}")
 
+    # 2. Text-Input mit verschiedenen Selectoren
+    for selector in ["input[type='text']", "input[placeholder*='Datum']", "input[placeholder*='date']", ".resmio-date-input input"]:
+        try:
+            inp = ctx.locator(selector).first
+            await inp.wait_for(state="visible", timeout=3000)
+            await inp.triple_click()
+            await inp.fill(date_de)
+            await inp.press("Tab")
+            logger.info(f"Datum gesetzt (Text, selector={selector}): {date_de}")
+            return True
+        except TimeoutError:
+            continue
+        except Exception as e:
+            logger.debug(f"Fehler bei Text-Input ({selector}): {type(e).__name__}")
+
+    # 3. Kalender-Button klicken, dann Datum wählen
     try:
-        inp = ctx.locator("input[type='text']").first
-        await inp.wait_for(state="visible", timeout=3000)
-        await inp.triple_click()
-        await inp.fill(date_de)
-        await inp.press("Tab")
+        calendar_btn = ctx.get_by_role("button", name=lambda name: "Kalender" in name or "Datum" in name or "calendar" in name.lower()).first
+        await calendar_btn.wait_for(state="visible", timeout=3000)
+        await calendar_btn.click()
+        await ctx.wait_for_timeout(1500)
+
+        # Datum im Kalender wählen
+        day_selector = f"button[data-date='{date_iso}'], .calendar-day[data-date='{date_iso}'], td[data-date='{date_iso}']"
+        day = ctx.locator(day_selector).first
+        await day.wait_for(state="visible", timeout=3000)
+        await day.click()
+        logger.info(f"Datum im Kalender gewählt: {date_iso}")
         return True
     except TimeoutError:
-        logger.warning("Text-Input für Datum nicht gefunden")
+        logger.warning("Kalender-Button nicht gefunden")
     except Exception as e:
-        logger.warning(f"Fehler bei Text-Input: {type(e).__name__}: {e}")
+        logger.warning(f"Fehler bei Kalender-Button: {type(e).__name__}: {e}")
 
+    logger.error(f"Konnte Datum {date_de} nicht setzen")
     return False
 
 
