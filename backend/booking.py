@@ -113,27 +113,41 @@ async def _set_date(ctx, event_date: datetime) -> bool:
 
 
 async def _set_guests(ctx, count: int = 4) -> bool:
+    """Stellt die Anzahl der Gäste über den Resmio guest-picker Button ein."""
     try:
-        sel = ctx.locator("select").first
-        await sel.wait_for(state="visible", timeout=5000)
-        await sel.select_option(str(count))
-        return True
-    except TimeoutError:
-        logger.debug("Select-Element nicht sichtbar, versuche Stepper")
-    except Exception as e:
-        logger.debug(f"Fehler bei Select: {type(e).__name__}")
+        # Resmio verwendet einen Button ".guest-picker" mit Text wie "2 Gäste"
+        guest_picker = ctx.locator(".guest-picker").first
+        if not await guest_picker.is_visible(timeout=2000):
+            guest_picker = ctx.get_by_text("Gäste", exact=False).first
+        if not await guest_picker.is_visible(timeout=2000):
+            raise Exception("Kein Guest-Picker Button gefunden")
 
-    try:
-        plus = ctx.get_by_role("button", name="+").first
-        current_el = ctx.locator("[data-guests],[data-count],[aria-valuetext]").first
-        current = int(await current_el.text_content(timeout=3000) or "1")
-        for _ in range(count - current):
-            await plus.click()
-        return True
-    except TimeoutError:
-        logger.warning("Stepper-Button nicht sichtbar")
+        await guest_picker.click()
+        await ctx.wait_for_timeout(1000)
+
+        # Jetzt sollte eine Auswahl mit Zahlen erscheinen
+        # Suche nach dem Button mit der gewünschten Anzahl
+        for btn_selector in [f".guest-count-{count}", f"[data-guests='{count}']", f"button:has-text('{count}')"]:
+            try:
+                count_btn = ctx.locator(btn_selector).first
+                if await count_btn.is_visible(timeout=1000):
+                    await count_btn.click()
+                    logger.info(f"Gäste gesetzt auf {count}")
+                    await ctx.wait_for_timeout(1000)
+                    return True
+            except Exception:
+                continue
+
+        # Fallback: Suche nach Text mit der Zahl
+        count_btn = ctx.get_by_text(str(count), exact=False).first
+        if await count_btn.is_visible(timeout=2000):
+            await count_btn.click()
+            logger.info(f"Gäste gesetzt auf {count} (Fallback)")
+            await ctx.wait_for_timeout(1000)
+            return True
+
     except Exception as e:
-        logger.warning(f"Fehler bei Stepper: {type(e).__name__}: {e}")
+        logger.warning(f"Guest-Picker fehlgeschlagen: {e}")
 
     return False
 
