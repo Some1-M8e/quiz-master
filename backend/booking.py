@@ -113,7 +113,7 @@ async def _set_date(ctx, event_date: datetime) -> bool:
 
 
 async def _set_guests(ctx, count: int = 4) -> bool:
-    """Stellt die Anzahl der Gäste über den Resmio guest-picker Button ein."""
+    """Stellt die Anzahl der Gäste über den Resmio guest-picker Modal ein."""
     try:
         # Resmio verwendet einen Button ".guest-picker" mit Text wie "2 Gäste"
         guest_picker = ctx.locator(".guest-picker").first
@@ -123,28 +123,48 @@ async def _set_guests(ctx, count: int = 4) -> bool:
             raise Exception("Kein Guest-Picker Button gefunden")
 
         await guest_picker.click()
-        await ctx.wait_for_timeout(1000)
+        await ctx.wait_for_timeout(1500)
 
-        # Jetzt sollte eine Auswahl mit Zahlen erscheinen
-        # Suche nach dem Button mit der gewünschten Anzahl
-        for btn_selector in [f".guest-count-{count}", f"[data-guests='{count}']", f"button:has-text('{count}')"]:
+        # Modal ist offen - suche nach der Option mit der richtigen Anzahl
+        # Resmio verwendet aria-label wie "11 Gäste" oder role="option"
+        target_text = f"{count} Gäste"
+
+        # Suche nach Option im Modal
+        option_selector = f"div[role='option'][aria-label*='{count}'], .guestpicker-modal [role='option']:has-text('{count}')"
+        try:
+            option = ctx.locator(option_selector).first
+            if await option.is_visible(timeout=2000):
+                await option.click()
+                logger.info(f"Gäste gesetzt auf {count}")
+                await ctx.wait_for_timeout(1000)
+                return True
+        except Exception:
+            pass
+
+        # Fallback: Suche nach div mit aria-label containing the count
+        for i in range(20):  # Prüfe bis 20 Optionen
             try:
-                count_btn = ctx.locator(btn_selector).first
-                if await count_btn.is_visible(timeout=1000):
-                    await count_btn.click()
-                    logger.info(f"Gäste gesetzt auf {count}")
+                option = ctx.locator(f"div[role='option']").nth(i)
+                text = await option.text_content() or ""
+                aria_label = await option.get_attribute("aria-label") or ""
+                if str(count) in aria_label or target_text in text:
+                    await option.click()
+                    logger.info(f"Gäste gesetzt auf {count} (Option {i})")
                     await ctx.wait_for_timeout(1000)
                     return True
             except Exception:
                 continue
 
-        # Fallback: Suche nach Text mit der Zahl
-        count_btn = ctx.get_by_text(str(count), exact=False).first
-        if await count_btn.is_visible(timeout=2000):
-            await count_btn.click()
-            logger.info(f"Gäste gesetzt auf {count} (Fallback)")
-            await ctx.wait_for_timeout(1000)
-            return True
+        # Nochmal Fallback: Suche nach div mit Text "X Gäste"
+        try:
+            option = ctx.get_by_text(target_text, exact=False).first
+            if await option.is_visible(timeout=2000):
+                await option.click()
+                logger.info(f"Gäste gesetzt auf {count} (Text-Fallback)")
+                await ctx.wait_for_timeout(1000)
+                return True
+        except Exception:
+            pass
 
     except Exception as e:
         logger.warning(f"Guest-Picker fehlgeschlagen: {e}")
