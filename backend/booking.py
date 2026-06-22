@@ -20,6 +20,8 @@ async def _open_resmio(page, browser_context):
                 await btn.click()
             popup = await popup_info.value
             await popup.wait_for_load_state("networkidle", timeout=20000)
+            # Warte auf Widget-Inhalt
+            await popup.wait_for_timeout(5000)
             logger.info(f"Resmio als Popup geladen: {popup.url}")
             return popup
         except Exception:
@@ -36,6 +38,12 @@ async def _open_resmio(page, browser_context):
     for frame in page.frames:
         if "resmio" in frame.url.lower():
             logger.info(f"Resmio als iframe gefunden: {frame.url}")
+            # Warte auf Iframe-Inhalt
+            try:
+                await frame.wait_for_load_state("domcontentloaded", timeout=10000)
+                await frame.wait_for_timeout(3000)
+            except Exception:
+                pass
             return frame
 
     logger.info("Resmio nicht als Popup/iframe gefunden — nutze Hauptseite")
