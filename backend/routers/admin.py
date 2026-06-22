@@ -1,12 +1,11 @@
-from fastapi import APIRouter, BackgroundTasks, Depends
-from security import require_admin_key
+from fastapi import APIRouter, BackgroundTasks
 from database import SessionLocal
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
 @router.post("/scraper/run", status_code=200)
-def run_scraper_now(background_tasks: BackgroundTasks, _admin: str = Depends(require_admin_key)):
+def run_scraper_now(background_tasks: BackgroundTasks):
     from scraper import run_scraper
     from datetime import datetime, timezone
 
@@ -35,7 +34,7 @@ def run_scraper_now(background_tasks: BackgroundTasks, _admin: str = Depends(req
 
 
 @router.post("/booking/run", status_code=200)
-def run_booking_now(_admin: str = Depends(require_admin_key)):
+def run_booking_now():
     from scheduler import job_booking_logic
 
     job_booking_logic()
@@ -43,7 +42,7 @@ def run_booking_now(_admin: str = Depends(require_admin_key)):
 
 
 @router.post("/scheduler/start", status_code=200)
-def start_scheduler(_admin: str = Depends(require_admin_key)):
+def start_scheduler():
     from scheduler import start_scheduler as _start
 
     _start()
