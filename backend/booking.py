@@ -79,8 +79,12 @@ async def _set_date(ctx, event_date: datetime) -> bool:
 
     # 3. Kalender-Button klicken, dann Datum wählen
     try:
-        calendar_btn = ctx.get_by_role("button", name=lambda name: "Kalender" in name or "Datum" in name or "calendar" in name.lower()).first
-        await calendar_btn.wait_for(state="visible", timeout=3000)
+        calendar_btn = ctx.get_by_role("button", name="Kalender").first
+        if not await calendar_btn.is_visible(timeout=2000):
+            calendar_btn = ctx.get_by_role("button", name="Datum").first
+        if not await calendar_btn.is_visible(timeout=2000):
+            calendar_btn = ctx.locator("button:has-text('Kalender'), button:has-text('Datum'), .calendar-toggle").first
+            await calendar_btn.wait_for(state="visible", timeout=3000)
         await calendar_btn.click()
         await ctx.wait_for_timeout(1500)
 
