@@ -282,10 +282,33 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
 
             # Späteste verfügbare Uhrzeit wählen
             chosen = slots[0]
-            await ctx.get_by_text(chosen, exact=True).first.click(timeout=5000)
-            await ctx.wait_for_timeout(2000)
+            slot_btn = ctx.get_by_text(chosen, exact=True).first
+
+            # Prüfen ob der Slot wirklich klickbar ist (nicht disabled)
+            is_disabled = await slot_btn.get_attribute("disabled")
+            if is_disabled:
+                logger.error(f"Slot {chosen} ist disabled - trotz vorheriger Prüfung! Event ist ausgebucht.")
+                return False
+
+            await slot_btn.click(timeout=5000)
+            await page.wait_for_timeout(3000)
             await page.screenshot(path="screenshots/test_05_uhrzeit_gewaehlt.png")
             logger.info(f"Schritt 5: Uhrzeit gewählt: {chosen}")
+
+            # Warten bis "Weiter" enabled ist (bis zu 10 Sekunden)
+            logger.info("Warte auf Weiter-Button...")
+            for i in range(10):
+                try:
+                    weiter_btn = ctx.get_by_text("Weiter", exact=False).first
+                    if await weiter_btn.is_enabled(timeout=500):
+                        logger.info(f"Weiter-Button ist jetzt enabled nach {i+1} Sekunden")
+                        break
+                except Exception:
+                    pass
+                await page.wait_for_timeout(1000)
+            else:
+                logger.error("Weiter-Button wurde nach 10 Sekunden immer noch nicht enabled - Buchung abgebrochen")
+                return False
 
             if stop_before_confirm:
                 logger.info("STOPP vor Weiter-Button (Testmodus)")
