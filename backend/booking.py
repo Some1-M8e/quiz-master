@@ -330,19 +330,51 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
                 logger.info("Test abgeschlossen - alle Felder ausgefüllt, Confirm-Button nicht geklickt")
                 return True
 
+            # Debug: Alle Buttons im Formular auflisten
+            try:
+                buttons = await ctx.evaluate("""() => {
+                    const btns = [...document.querySelectorAll('button')];
+                    return btns.map(b => ({
+                        text: (b.textContent || '').trim(),
+                        class: b.className || '',
+                        type: b.type || ''
+                    }))
+                }""")
+                logger.info(f"DEBUG Submit-Buttons: {buttons}")
+            except Exception as e:
+                logger.warning(f"Button-Debug fehlgeschlagen: {e}")
+
             # Formular absenden
             submitted = False
-            for btn_name in ("Weiter", "Reservieren", "Buchen", "Bestätigen", "Confirm"):
+            for btn_name in ("Weiter", "Reservieren", "Buchen", "Bestätigen", "Confirm", "Absenden"):
                 try:
                     btn = ctx.get_by_role("button", name=btn_name).first
-                    if await btn.is_visible(timeout=2000):
+                    if not await btn.is_visible(timeout=1500):
+                        btn = ctx.get_by_text(btn_name, exact=False).first
+                    if await btn.is_visible(timeout=1500):
                         await btn.click()
                         submitted = True
+                        logger.info(f"Submit-Button '{btn_name}' geklickt")
                         break
                 except Exception:
                     pass
+
             if not submitted:
-                await ctx.locator("button[type='submit']").first.click(timeout=5000)
+                # Suche nach allen Buttons und klicke den ersten sichtbaren
+                for selector in ["button.is-primary", ".button.submit", "button:not([type='button'])"]:
+                    try:
+                        btn = ctx.locator(selector).first
+                        if await btn.is_visible(timeout=2000):
+                            await btn.click()
+                            submitted = True
+                            logger.info(f"Submit-Button ({selector}) geklickt")
+                            break
+                    except Exception:
+                        continue
+
+            if not submitted:
+                logger.error("Kein Submit-Button gefunden")
+                return False
 
             await page.wait_for_timeout(3000)
             await page.screenshot(path=f"screenshots/book_done_{event_date.strftime('%Y%m%d')}.png")
