@@ -287,8 +287,25 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
             await page.screenshot(path="screenshots/test_05_uhrzeit_gewaehlt.png")
             logger.info(f"Schritt 5: Uhrzeit gewählt: {chosen}")
 
-            # Kontaktdaten ausfüllen
-            logger.info("Schritt 6: Kontaktdaten ausfüllen...")
+            if stop_before_confirm:
+                logger.info("STOPP vor Weiter-Button (Testmodus)")
+                await page.screenshot(path="screenshots/test_06_vor_weiter_stopp.png")
+                return True
+
+            # Schritt 6: "Weiter" klicken (geht zur Kontaktseite)
+            logger.info("Schritt 6: Weiter-Button klicken...")
+            weiter_btn = ctx.get_by_text("Weiter", exact=False).first
+            if not await weiter_btn.is_visible(timeout=3000):
+                logger.error("Weiter-Button nicht gefunden")
+                return False
+            await weiter_btn.click()
+            await page.wait_for_timeout(3000)
+            logger.info("Weiter geklickt - gehe zur Kontaktseite")
+
+            await page.screenshot(path="screenshots/test_07_kontaktseite.png")
+
+            # Schritt 7: Kontaktdaten auf der Kontaktseite ausfüllen
+            logger.info("Schritt 7: Kontaktdaten ausfüllen...")
             name_filled = False
             for selector in ("input[name='name']", "input[placeholder*='Name']", "input[placeholder*='name']", "input#name"):
                 try:
@@ -324,11 +341,11 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
                     except Exception:
                         continue
 
-            await page.screenshot(path="screenshots/test_06_kontaktdaten_ausgefuellt.png")
-            logger.info(f"Schritt 6: Kontaktdaten ausgefüllt (Name={name_filled}, Email={email_filled})")
+            await page.screenshot(path="screenshots/test_08_kontaktdaten_ausgefuellt.png")
+            logger.info(f"Schritt 7: Kontaktdaten ausgefüllt (Name={name_filled}, Email={email_filled})")
 
-            # Optionale Nachricht eintragen
-            logger.info("Schritt 7: Nachricht eintragen...")
+            # Schritt 8: Nachricht eintragen
+            logger.info("Schritt 8: Nachricht eintragen...")
             for selector in ("textarea", "input[name='message']", "input[name='note']", "[placeholder*='Nachricht']", "[placeholder*='message']"):
                 try:
                     msg_inp = ctx.locator(selector).first
@@ -339,57 +356,10 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
                 except Exception:
                     continue
 
-            await page.screenshot(path="screenshots/test_07_nachricht_eingetragen.png")
-            logger.info("Schritt 7: Nachricht eingetragen")
+            await page.screenshot(path="screenshots/test_09_nachricht_eingetragen.png")
+            logger.info("Schritt 8: Nachricht eingetragen")
 
-            # Debug: Prüfen ob Weiter-Button enabled ist
-            try:
-                weiter_btn = ctx.get_by_text("Weiter", exact=False).first
-                is_enabled = await weiter_btn.is_enabled(timeout=1000)
-                is_visible = await weiter_btn.is_visible(timeout=1000)
-                logger.info(f"Weiter-Button: visible={is_visible}, enabled={is_enabled}")
-            except Exception as e:
-                logger.warning(f"Weiter-Button Check fehlgeschlagen: {e}")
-
-            if stop_before_confirm:
-                logger.info("STOPP vor Confirm-Button (Testmodus)")
-                await page.screenshot(path="screenshots/test_08_vor_confirm_stopp.png")
-                logger.info("Test abgeschlossen - alle Felder ausgefüllt, Confirm-Button nicht geklickt")
-                return True
-
-            # Debug: Alle Buttons vor "Weiter" auflisten
-            try:
-                buttons = await ctx.evaluate("""() => {
-                    const btns = [...document.querySelectorAll('button')];
-                    return btns.map(b => ({ text: (b.textContent || '').trim(), class: b.className || '' }))
-                }""")
-                logger.info(f"DEBUG Buttons vor Weiter: {buttons}")
-            except Exception as e:
-                logger.warning(f"Button-Debug fehlgeschlagen: {e}")
-
-            # Schritt 8: "Weiter" klicken (geht zur Kontaktseite)
-            logger.info("Schritt 8: Weiter-Button klicken")
-            weiter_btn = ctx.get_by_text("Weiter", exact=False).first
-            if not await weiter_btn.is_visible(timeout=3000):
-                logger.error("Weiter-Button nicht gefunden")
-                return False
-            await weiter_btn.click()
-            await page.wait_for_timeout(4000)
-            logger.info("Weiter geklickt - warte auf Kontaktseite")
-
-            await page.screenshot(path="screenshots/test_08_kontaktseite.png")
-
-            # Debug: Buttons auf der Kontaktseite
-            try:
-                buttons = await ctx.evaluate("""() => {
-                    const btns = [...document.querySelectorAll('button')];
-                    return btns.map(b => ({ text: (b.textContent || '').trim(), class: b.className || '' }))
-                }""")
-                logger.info(f"DEBUG Buttons auf Kontaktseite: {buttons}")
-            except Exception as e:
-                logger.warning(f"Button-Debug fehlgeschlagen: {e}")
-
-            # Schritt 9: Exakt nach "Confirm" suchen (nicht "Weiter"!)
+            # Schritt 9: Exakt nach "Confirm" suchen
             logger.info("Schritt 9: Nach 'Confirm'-Button suchen...")
             confirm_btn = ctx.get_by_text("Confirm", exact=True).first
             if not await confirm_btn.is_visible(timeout=5000):
@@ -401,7 +371,7 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
 
             await page.wait_for_timeout(5000)
             await page.screenshot(path=f"screenshots/book_done_{event_date.strftime('%Y%m%d')}.png")
-            logger.info(f"Buchung abgeschlossen: {event_date.strftime('%d.%m.%Y')} um {chosen}")
+            logger.info(f"Buchung erfolgreich: {event_date.strftime('%d.%m.%Y')} um {chosen}")
             return True
             await page.screenshot(path=f"screenshots/book_done_{event_date.strftime('%Y%m%d')}.png")
             logger.info(f"Buchung abgeschlossen: {event_date.strftime('%d.%m.%Y')} um {chosen}")
