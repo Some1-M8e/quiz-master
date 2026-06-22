@@ -51,7 +51,14 @@ async def _set_date(ctx, event_date: datetime) -> bool:
 
     # Helper: Versuche Datum in einem Context (Page oder Frame) zu setzen
     async def try_set_date_in_context(c, ctx_name: str) -> bool:
-        logger.debug(f"Versuche Datum in {ctx_name} zu setzen")
+        logger.info(f"DEBUG {ctx_name}: Suche Datum-Input, suche alle Inputs...")
+        # Debug: Alle Inputs auflisten
+        try:
+            all_inputs = await c.query_selector_all("input")
+            logger.info(f"DEBUG {ctx_name}: Gefundene Inputs: {[await i.get_attribute('type') for i in all_inputs[:10]]}")
+        except Exception as e:
+            logger.info(f"DEBUG {ctx_name}: Cannot list inputs: {e}")
+
         # 1. HTML5 date input
         try:
             inp = c.locator("input[type='date']").first
@@ -61,44 +68,49 @@ async def _set_date(ctx, event_date: datetime) -> bool:
             logger.info(f"Datum gesetzt ({ctx_name}, HTML5): {date_iso}")
             return True
         except TimeoutError:
+            logger.info(f"DEBUG {ctx_name}: Kein HTML5 date input sichtbar")
             pass
         except Exception as e:
             logger.debug(f"{ctx_name} HTML5 date input Fehler: {type(e).__name__}")
 
-        # 2. Text-Input
-        for selector in ["input[type='text']", "input[placeholder*='Datum']", "input[placeholder*='date']"]:
+        # 2. Text-Input mit explizitem Timeout-Check
+        for selector in ["input[placeholder*='Datum']", "input[placeholder*='date']"]:
             try:
                 inp = c.locator(selector).first
-                await inp.wait_for(state="visible", timeout=2000)
-                await inp.triple_click()
-                await inp.fill(date_de)
-                await inp.press("Tab")
-                logger.info(f"Datum gesetzt ({ctx_name}, Text): {date_de}")
-                return True
+                if await inp.is_visible(timeout=2000):
+                    await inp.triple_click()
+                    await inp.fill(date_de)
+                    await inp.press("Tab")
+                    logger.info(f"Datum gesetzt ({ctx_name}, Text mit Placeholder): {date_de}")
+                    return True
             except TimeoutError:
                 continue
 
-        # 3. JavaScript
+        # 3. JavaScript - alle Inputs durchgehen
         try:
             js_code = f"""() => {{
                 const inputs = document.querySelectorAll('input[type="date"], input[type="text"]');
+                console.log('Found inputs:', inputs.length);
                 for (let inp of inputs) {{
+                    console.log('Checking inp:', inp.type, inp.placeholder, inp.offsetParent);
                     if (inp.offsetParent !== null) {{
                         inp.value = '{date_iso}';
                         inp.dispatchEvent(new Event('change', {{ bubbles: true }}));
                         inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                        console.log('Set date via JS');
                         return true;
                     }}
                 }}
                 return false;
             }}"""
             result = await c.evaluate(js_code)
+            logger.info(f"DEBUG {ctx_name} JS-Ergebnis: {result}")
             if result:
                 logger.info(f"Datum per JavaScript gesetzt ({ctx_name}): {date_iso}")
                 await c.wait_for_timeout(1000)
                 return True
         except Exception as e:
-            logger.debug(f"{ctx_name} JS-Datum fehlgeschlagen: {e}")
+            logger.info(f"DEBUG {ctx_name} JS-Datum fehlgeschlagen: {e}")
 
         return False
 
