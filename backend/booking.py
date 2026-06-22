@@ -60,9 +60,23 @@ async def _set_date(ctx, event_date: datetime) -> bool:
     # Wartezeit nach Resmio-Öffnung
     await ctx.wait_for_timeout(3000)
 
-    # 1. Prüfen ob ein "Reservieren"/"Buchung" Button angezeigt wird - falls ja, klicken
+    # 1. Debug: Alle Buttons auflisten
     try:
-        for btn_text in ["Reservieren", "Tisch reservieren", "Buchung", "Jetzt reservieren", "table reservation"]:
+        buttons = await ctx.evaluate("""() => {
+            const btns = [...document.querySelectorAll('button, a, div[role=\"button\"]')];
+            return btns.slice(0, 20).map(b => ({
+                text: (b.textContent || '').trim(),
+                class: b.className || '',
+                role: b.getAttribute('role') || ''
+            }))
+        }""")
+        logger.info(f"DEBUG Buttons im Widget: {buttons}")
+    except Exception as e:
+        logger.warning(f"Button-Debug fehlgeschlagen: {e}")
+
+    # 2. Prüfen ob ein "Reservieren"/"Buchung" Button angezeigt wird - falls ja, klicken
+    try:
+        for btn_text in ["Reservieren", "Tisch reservieren", "Buchung", "Jetzt reservieren", "table reservation", "Reserve", "Book"]:
             btn = ctx.get_by_text(btn_text, exact=False).first
             if await btn.is_visible(timeout=1500):
                 await btn.click()
