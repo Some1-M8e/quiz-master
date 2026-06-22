@@ -51,102 +51,65 @@ async def _open_resmio(page, browser_context):
 
 
 async def _set_date(ctx, event_date: datetime) -> bool:
-    date_iso = event_date.strftime("%Y-%m-%d")
+    """Stellt das Datum über den Resmio Kalender-Wähler ein."""
     date_de = event_date.strftime("%d.%m.%Y")
+    day = event_date.day
+    month = event_date.month
+    year = event_date.year
 
-    # Mehr Wartezeit nach Resmio-Öffnung
-    await ctx.wait_for_timeout(4000)
+    # Wartezeit nach Resmio-Öffnung
+    await ctx.wait_for_timeout(3000)
 
-    # Helper: Versuche Datum in einem Context (Page oder Frame) zu setzen
-    async def try_set_date_in_context(c, ctx_name: str) -> bool:
-        logger.info(f"DEBUG {ctx_name}: Suche Datum-Input, suche alle Inputs...")
-        # Debug: Alle Inputs auflisten
-        try:
-            all_inputs = await c.query_selector_all("input")
-            logger.info(f"DEBUG {ctx_name}: Gefundene Inputs: {[await i.get_attribute('type') for i in all_inputs[:10]]}")
-        except Exception as e:
-            logger.info(f"DEBUG {ctx_name}: Cannot list inputs: {e}")
+    # 1. Auf das Datum-Feld klicken (öffnet den Kalender)
+    try:
+        # Suche nach Datum-Input/Combobox
+        date_input = ctx.locator("input[placeholder*='Datum'], input[placeholder*='Date'], .date-input, [class*='dateInput']").first
+        if not await date_input.is_visible(timeout=2000):
+            date_input = ctx.get_by_role("combobox").first
+        if not await date_input.is_visible(timeout=2000):
+            # Suche nach allen Inputs und finde das Datum-Feld
+            date_input = ctx.locator("input").first
 
-        # 1. HTML5 date input
-        try:
-            inp = c.locator("input[type='date']").first
-            await inp.wait_for(state="visible", timeout=3000)
-            await inp.fill(date_iso)
-            await inp.press("Tab")
-            logger.info(f"Datum gesetzt ({ctx_name}, HTML5): {date_iso}")
-            return True
-        except TimeoutError:
-            logger.info(f"DEBUG {ctx_name}: Kein HTML5 date input sichtbar")
-            pass
-        except Exception as e:
-            logger.debug(f"{ctx_name} HTML5 date input Fehler: {type(e).__name__}")
-
-        # 2. Text-Input mit explizitem Timeout-Check
-        for selector in ["input[placeholder*='Datum']", "input[placeholder*='date']"]:
-            try:
-                inp = c.locator(selector).first
-                if await inp.is_visible(timeout=2000):
-                    await inp.triple_click()
-                    await inp.fill(date_de)
-                    await inp.press("Tab")
-                    logger.info(f"Datum gesetzt ({ctx_name}, Text mit Placeholder): {date_de}")
-                    return True
-            except TimeoutError:
-                continue
-
-        # 3. JavaScript - HTML-Inhalt und alle Elemente auslesen
-        try:
-            # Erst den gesamten HTML-Inhalt loggen
-            html = await c.evaluate("() => document.body.innerHTML")
-            logger.info(f"DEBUG {ctx_name} HTML-Inhalt (erste 1000 Zeichen): {html[:1000] if html else 'EMPTY'}")
-
-            # Alle Elemente auflisten
-            all_tags = await c.evaluate("() => [...document.querySelectorAll('*')].map(e => e.tagName).filter((t,i,a)=>!a.includes(t,i+1))")
-            logger.info(f"DEBUG {ctx_name} Alle Tags im Dokument: {all_tags}")
-
-            # Dann versuchen, Inputs zu setzen
-            js_code = f"""() => {{
-                const inputs = document.querySelectorAll('input[type="date"], input[type="text"]');
-                console.log('Found inputs:', inputs.length);
-                for (let inp of inputs) {{
-                    console.log('Checking inp:', inp.type, inp.placeholder, inp.offsetParent);
-                    if (inp.offsetParent !== null) {{
-                        inp.value = '{date_iso}';
-                        inp.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        inp.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                        console.log('Set date via JS');
-                        return true;
-                    }}
-                }}
-                return false;
-            }}"""
-            result = await c.evaluate(js_code)
-            logger.info(f"DEBUG {ctx_name} JS-Ergebnis: {result}")
-            if result:
-                logger.info(f"Datum per JavaScript gesetzt ({ctx_name}): {date_iso}")
-                await c.wait_for_timeout(1000)
-                return True
-        except Exception as e:
-            logger.info(f"DEBUG {ctx_name} JS-Datum fehlgeschlagen: {e}")
-
+        await date_input.click()
+        await ctx.wait_for_timeout(1500)
+        logger.info("Kalender-Öffner geklickt")
+    except Exception as e:
+        logger.warning(f"Kalender-Öffner nicht gefunden: {e}")
         return False
 
-    # ctx ist entweder eine Page (Popup) oder ein Frame
-    # Prüfen ob es ein Frame ist (hat keine wait_for_timeout Methode)
-    if hasattr(ctx, 'wait_for_timeout'):
-        # Es ist eine Page
-        if await try_set_date_in_context(ctx, "Page"):
-            return True
-        # Versuche in allen Frames
-        for i, frame in enumerate(ctx.frames):
-            if 'resmio' in frame.url.lower():
-                logger.info(f"Resmio Iframe #{i} gefunden: {frame.url}")
-                if await try_set_date_in_context(frame, f"Frame[{i}]"):
+    # 2. Im Kalender das richtige Datum klicken
+    try:
+        # Suche nach dem Kalendertag - Resmio verwendet oft data-date oder ähnliches
+        # Versuche verschiedene Selektoren
+        day_selectors = [
+            f"[data-date='{year}-{month:02d}-{day:02d}']",  # data-date="2026-06-25"
+            f"[data-day='{day}']",                          # data-day="25"
+            f".calendar-day[data-day='{day}']",             # Klasse mit data-day
+            f"button:has-text('{day}')",                    # Button mit Text "25"
+            f"td[data-day='{day}']",                        # Table-Zelle
+        ]
+
+        for selector in day_selectors:
+            try:
+                day_btn = ctx.locator(selector).first
+                if await day_btn.is_visible(timeout=1000):
+                    await day_btn.click()
+                    logger.info(f"Datum im Kalender gewählt: {date_de}")
+                    await ctx.wait_for_timeout(1000)
                     return True
-    else:
-        # Es ist direkt ein Frame
-        if await try_set_date_in_context(ctx, "Frame"):
+            except Exception:
+                continue
+
+        # Fallback: Suche nach Text mit dem Tag-Nummer
+        day_text_btn = ctx.get_by_text(str(day), exact=False).first
+        if await day_text_btn.is_visible(timeout=2000):
+            await day_text_btn.click()
+            logger.info(f"Datum per Text gewählt: {date_de}")
+            await ctx.wait_for_timeout(1000)
             return True
+
+    except Exception as e:
+        logger.warning(f"Kalender-Datum nicht gefunden: {e}")
 
     logger.error(f"Konnte Datum {date_de} nicht setzen")
     return False
