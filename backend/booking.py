@@ -60,29 +60,26 @@ async def _set_date(ctx, event_date: datetime) -> bool:
     # Wartezeit nach Resmio-Öffnung
     await ctx.wait_for_timeout(3000)
 
-    # Debug: Alle Elemente auflisten
+    # 1. Prüfen ob ein "Reservieren"/"Buchung" Button angezeigt wird - falls ja, klicken
     try:
-        all_elements = await ctx.evaluate("""() => {
-            const elems = [...document.querySelectorAll('*')];
-            return elems.slice(0, 100).map(e => ({
-                tag: e.tagName.toLowerCase(),
-                class: e.className || '',
-                placeholder: e.placeholder || '',
-                text: (e.textContent || '').trim().substring(0, 30)
-            })).filter(e => e.tag !== 'script' && e.tag !== 'style')
-        }""")
-        logger.info(f"DEBUG Elemente: {all_elements[:30]}")
-    except Exception as e:
-        logger.warning(f"Debug fehlgeschlagen: {e}")
+        for btn_text in ["Reservieren", "Tisch reservieren", "Buchung", "Jetzt reservieren", "table reservation"]:
+            btn = ctx.get_by_text(btn_text, exact=False).first
+            if await btn.is_visible(timeout=1500):
+                await btn.click()
+                await ctx.wait_for_timeout(3000)
+                logger.info(f"Button '{btn_text}' geklickt, Formular wird geladen...")
+                break
+    except Exception:
+        pass  # Kein Button gefunden - vielleicht ist das Formular schon offen
 
-    # 1. Auf das Datum-Feld klicken (öffnet den Kalender)
+    # 2. Auf das Datum-Feld klicken (öffnet den Kalender)
     try:
-        # Suche nach Datum-Input/Combobox/Div
+        # Suche nach Datum-Input/Combobox
         date_input = ctx.locator("input[placeholder*='Datum'], input[placeholder*='Date'], .date-input, [class*='dateInput']").first
         if not await date_input.is_visible(timeout=2000):
             date_input = ctx.get_by_role("combobox").first
         if not await date_input.is_visible(timeout=2000):
-            date_input = ctx.locator("input").first
+            raise Exception("Kein Datum-Input gefunden")
 
         await date_input.click()
         await ctx.wait_for_timeout(1500)
@@ -91,7 +88,7 @@ async def _set_date(ctx, event_date: datetime) -> bool:
         logger.warning(f"Kalender-Öffner nicht gefunden: {e}")
         return False
 
-    # 2. Im Kalender das richtige Datum klicken
+    # 3. Im Kalender das richtige Datum klicken
     try:
         day_selectors = [
             f"[data-date='{year}-{month:02d}-{day:02d}']",
