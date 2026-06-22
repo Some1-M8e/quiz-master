@@ -184,7 +184,13 @@ async def _available_slots(ctx) -> list[str]:
             disabled = await slot.get_attribute("disabled")
             aria_disabled = await slot.get_attribute("aria-disabled")
             cls = await slot.get_attribute("class") or ""
-            if disabled is None and aria_disabled != "true" and "disabled" not in cls and "full" not in cls:
+            # Prüfen ob Slot wirklich verfügbar ist
+            if (disabled is None and
+                aria_disabled != "true" and
+                "disabled" not in cls and
+                "full" not in cls and
+                "not-available" not in cls.lower() and
+                "unavailable" not in cls.lower()):
                 available.append(t)
         except Exception:
             pass
@@ -284,11 +290,23 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
             chosen = slots[0]
             slot_btn = ctx.get_by_text(chosen, exact=True).first
 
-            # Prüfen ob der Slot wirklich klickbar ist (nicht disabled)
+            # Prüfen ob der Slot wirklich klickbar ist (nicht disabled / not available)
             is_disabled = await slot_btn.get_attribute("disabled")
-            if is_disabled:
-                logger.error(f"Slot {chosen} ist disabled - trotz vorheriger Prüfung! Event ist ausgebucht.")
+            aria_disabled = await slot_btn.get_attribute("aria-disabled")
+            slot_class = await slot_btn.get_attribute("class") or ""
+
+            if is_disabled or aria_disabled == "true" or "not-available" in slot_class.lower():
+                logger.error(f"Slot {chosen} ist nicht verfügbar (disabled/not-available) - Event ist ausgebucht!")
                 return False
+
+            # Prüfen ob "not available" Text in der Nähe steht
+            try:
+                slot_text = await slot_btn.text_content(timeout=1000) or ""
+                if "not available" in slot_text.lower() or "ausgebucht" in slot_text.lower():
+                    logger.error(f"Slot {chosen} zeigt 'not available' - Event ist ausgebucht!")
+                    return False
+            except Exception:
+                pass
 
             await slot_btn.click(timeout=5000)
             await page.wait_for_timeout(3000)
