@@ -288,41 +288,68 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
             logger.info(f"Schritt 5: Uhrzeit gewählt: {chosen}")
 
             # Kontaktdaten ausfüllen
-            for selector in ("input[name='name']", "input[placeholder*='Name']", "input[placeholder*='name']"):
+            logger.info("Schritt 6: Kontaktdaten ausfüllen...")
+            name_filled = False
+            for selector in ("input[name='name']", "input[placeholder*='Name']", "input[placeholder*='name']", "input#name"):
                 try:
-                    await ctx.locator(selector).first.fill(settings.organizer_name, timeout=3000)
-                    break
-                except Exception:
-                    pass
-            for selector in ("input[type='email']", "input[name='email']"):
-                try:
-                    await ctx.locator(selector).first.fill(settings.organizer_email, timeout=3000)
-                    break
-                except Exception:
-                    pass
-            if settings.organizer_phone:
-                for selector in ("input[type='tel']", "input[name='phone']", "input[name='telephone']"):
-                    try:
-                        await ctx.locator(selector).first.fill(settings.organizer_phone, timeout=3000)
+                    inp = ctx.locator(selector).first
+                    if await inp.is_visible(timeout=2000):
+                        await inp.fill(settings.organizer_name)
+                        name_filled = True
+                        logger.info(f"Name ausgefüllt: {settings.organizer_name}")
                         break
+                except Exception:
+                    continue
+
+            email_filled = False
+            for selector in ("input[type='email']", "input[name='email']", "input#email"):
+                try:
+                    inp = ctx.locator(selector).first
+                    if await inp.is_visible(timeout=2000):
+                        await inp.fill(settings.organizer_email)
+                        email_filled = True
+                        logger.info(f"Email ausgefüllt: {settings.organizer_email}")
+                        break
+                except Exception:
+                    continue
+
+            if settings.organizer_phone:
+                for selector in ("input[type='tel']", "input[name='phone']", "input#phone"):
+                    try:
+                        inp = ctx.locator(selector).first
+                        if await inp.is_visible(timeout=2000):
+                            await inp.fill(settings.organizer_phone)
+                            logger.info(f"Phone ausgefüllt: {settings.organizer_phone}")
+                            break
                     except Exception:
-                        pass
+                        continue
+
             await page.screenshot(path="screenshots/test_06_kontaktdaten_ausgefuellt.png")
-            logger.info("Schritt 6: Kontaktdaten ausgefüllt")
+            logger.info(f"Schritt 6: Kontaktdaten ausgefüllt (Name={name_filled}, Email={email_filled})")
 
             # Optionale Nachricht eintragen
-            for selector in ("textarea", "input[name='message']", "input[name='note']", "[placeholder*='Nachricht']", "[placeholder*='message']", "[placeholder*='Anmerkung']"):
+            logger.info("Schritt 7: Nachricht eintragen...")
+            for selector in ("textarea", "input[name='message']", "input[name='note']", "[placeholder*='Nachricht']", "[placeholder*='message']"):
                 try:
                     msg_inp = ctx.locator(selector).first
                     if await msg_inp.is_visible(timeout=2000):
-                        await msg_inp.fill("Diese Buchung wurde von einer KI für mich durchgeführt. Bei Problemen bitte anrufen!!", timeout=3000)
-                        logger.info("Nachricht im Buchungformular eingetragen")
+                        await msg_inp.fill("Diese Buchung wurde von einer KI für mich durchgeführt. Bei Problemen bitte anrufen!!")
+                        logger.info("Nachricht ausgefüllt")
                         break
                 except Exception:
-                    pass
+                    continue
 
             await page.screenshot(path="screenshots/test_07_nachricht_eingetragen.png")
             logger.info("Schritt 7: Nachricht eingetragen")
+
+            # Debug: Prüfen ob Weiter-Button enabled ist
+            try:
+                weiter_btn = ctx.get_by_text("Weiter", exact=False).first
+                is_enabled = await weiter_btn.is_enabled(timeout=1000)
+                is_visible = await weiter_btn.is_visible(timeout=1000)
+                logger.info(f"Weiter-Button: visible={is_visible}, enabled={is_enabled}")
+            except Exception as e:
+                logger.warning(f"Weiter-Button Check fehlgeschlagen: {e}")
 
             if stop_before_confirm:
                 logger.info("STOPP vor Confirm-Button (Testmodus)")
