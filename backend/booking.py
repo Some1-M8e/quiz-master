@@ -77,7 +77,7 @@ async def _set_date(ctx, event_date: datetime) -> bool:
         except Exception as e:
             logger.debug(f"Fehler bei Text-Input ({selector}): {type(e).__name__}")
 
-    # 3. JavaScript: Datum direkt ins Formular setzen
+    # 3. JavaScript: Datum direkt ins Formular setzen (BEVOR Kalender versucht wird)
     try:
         js_code = f"""
         () => {{
@@ -98,31 +98,30 @@ async def _set_date(ctx, event_date: datetime) -> bool:
             logger.info(f"Datum per JavaScript gesetzt: {date_iso}")
             await ctx.wait_for_timeout(1000)
             return True
+        else:
+            logger.debug("JavaScript: Kein sichtbares Input gefunden")
     except Exception as e:
         logger.debug(f"JavaScript-Datum fehlgeschlagen: {e}")
 
-    # 4. Kalender-Button klicken, dann Datum wählen
+    # 4. Kalender-Button klicken, dann Datum wählen (nur wenn JavaScript nicht geklappt hat)
+    # Dies ist ein optionaler Fallback - Fehler werden ignoriert
     try:
         calendar_btn = ctx.get_by_role("button", name="Kalender").first
         if not await calendar_btn.is_visible(timeout=2000):
             calendar_btn = ctx.get_by_role("button", name="Datum").first
-        if not await calendar_btn.is_visible(timeout=2000):
-            calendar_btn = ctx.locator("button:has-text('Kalender'), button:has-text('Datum'), .calendar-toggle").first
-            await calendar_btn.wait_for(state="visible", timeout=3000)
-        await calendar_btn.click()
-        await ctx.wait_for_timeout(1500)
+        if await calendar_btn.is_visible(timeout=2000):
+            await calendar_btn.click()
+            await ctx.wait_for_timeout(1500)
 
-        # Datum im Kalender wählen
-        day_selector = f"button[data-date='{date_iso}'], .calendar-day[data-date='{date_iso}'], td[data-date='{date_iso}']"
-        day = ctx.locator(day_selector).first
-        await day.wait_for(state="visible", timeout=3000)
-        await day.click()
-        logger.info(f"Datum im Kalender gewählt: {date_iso}")
-        return True
-    except TimeoutError:
-        logger.warning("Kalender-Button nicht gefunden")
+            # Datum im Kalender wählen
+            day_selector = f"button[data-date='{date_iso}'], .calendar-day[data-date='{date_iso}'], td[data-date='{date_iso}']"
+            day = ctx.locator(day_selector).first
+            if await day.is_visible(timeout=2000):
+                await day.click()
+                logger.info(f"Datum im Kalender gewählt: {date_iso}")
+                return True
     except Exception as e:
-        logger.warning(f"Fehler bei Kalender-Button: {type(e).__name__}: {e}")
+        logger.debug(f"Kalender-Fallback nicht möglich: {type(e).__name__}")
 
     logger.error(f"Konnte Datum {date_de} nicht setzen")
     return False
