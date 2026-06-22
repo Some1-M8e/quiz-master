@@ -60,14 +60,28 @@ async def _set_date(ctx, event_date: datetime) -> bool:
     # Wartezeit nach Resmio-Öffnung
     await ctx.wait_for_timeout(3000)
 
+    # Debug: Alle Elemente auflisten
+    try:
+        all_elements = await ctx.evaluate("""() => {
+            const elems = [...document.querySelectorAll('*')];
+            return elems.slice(0, 100).map(e => ({
+                tag: e.tagName.toLowerCase(),
+                class: e.className || '',
+                placeholder: e.placeholder || '',
+                text: (e.textContent || '').trim().substring(0, 30)
+            })).filter(e => e.tag !== 'script' && e.tag !== 'style')
+        }""")
+        logger.info(f"DEBUG Elemente: {all_elements[:30]}")
+    except Exception as e:
+        logger.warning(f"Debug fehlgeschlagen: {e}")
+
     # 1. Auf das Datum-Feld klicken (öffnet den Kalender)
     try:
-        # Suche nach Datum-Input/Combobox
+        # Suche nach Datum-Input/Combobox/Div
         date_input = ctx.locator("input[placeholder*='Datum'], input[placeholder*='Date'], .date-input, [class*='dateInput']").first
         if not await date_input.is_visible(timeout=2000):
             date_input = ctx.get_by_role("combobox").first
         if not await date_input.is_visible(timeout=2000):
-            # Suche nach allen Inputs und finde das Datum-Feld
             date_input = ctx.locator("input").first
 
         await date_input.click()
@@ -79,14 +93,12 @@ async def _set_date(ctx, event_date: datetime) -> bool:
 
     # 2. Im Kalender das richtige Datum klicken
     try:
-        # Suche nach dem Kalendertag - Resmio verwendet oft data-date oder ähnliches
-        # Versuche verschiedene Selektoren
         day_selectors = [
-            f"[data-date='{year}-{month:02d}-{day:02d}']",  # data-date="2026-06-25"
-            f"[data-day='{day}']",                          # data-day="25"
-            f".calendar-day[data-day='{day}']",             # Klasse mit data-day
-            f"button:has-text('{day}')",                    # Button mit Text "25"
-            f"td[data-day='{day}']",                        # Table-Zelle
+            f"[data-date='{year}-{month:02d}-{day:02d}']",
+            f"[data-day='{day}']",
+            f".calendar-day[data-day='{day}']",
+            f"button:has-text('{day}')",
+            f"td[data-day='{day}']",
         ]
 
         for selector in day_selectors:
@@ -100,7 +112,6 @@ async def _set_date(ctx, event_date: datetime) -> bool:
             except Exception:
                 continue
 
-        # Fallback: Suche nach Text mit dem Tag-Nummer
         day_text_btn = ctx.get_by_text(str(day), exact=False).first
         if await day_text_btn.is_visible(timeout=2000):
             await day_text_btn.click()
