@@ -122,18 +122,19 @@ def scrape_provider(provider: Provider, db: Session) -> list[dict]:
             available_slots = 4
 
         # Status basierend auf Website-Status UND verfügbarer Kapazität
-        # Nur "pending" = buchbar mit 4+ Slots wird sofort gebucht
+        # "pending" = buchbar mit 3+ Slots wird sofort gebucht
+        # "teilweise_ausverkauft" = 2 oder weniger Plätze → wird NICHT gebucht
         if any(word in status for word in ["abgesagt", "cancelled"]):
             event_status = "cancelled"
         elif any(word in status for word in ["ausverkauft", "sold out"]) or available_slots == 0:
             event_status = "ausverkauft"
-        elif available_slots < 4:
-            event_status = "teilweise_ausverkauft"  # 2-3 Plätze → wird nicht gebucht
+        elif available_slots < 3:
+            event_status = "teilweise_ausverkauft"  # 2 oder weniger Plätze → wird nicht gebucht
         else:
-            event_status = "pending"  # 4+ Plätze → wird SOFORT gebucht
+            event_status = "pending"  # 3+ Plätze → wird SOFORT gebucht
 
         logger.info(f"Event '{title}' am {date.strftime('%d.%m.')}: {available_slots} Plätze verfügbar → {event_status}")
-        found_events.append({"title": title, "date": date, "detail_url": detail_url, "description": description, "status": event_status})
+        found_events.append({"title": title, "date": date, "detail_url": detail_url, "description": description, "status": event_status, "available_slots": available_slots})
 
     return found_events
 
@@ -155,7 +156,7 @@ def run_scraper(db: Session):
 
         # Auch bestehende pending Events buchen (wenn Scraper sie nicht neu findet)
         pending_events = db.query(Event).filter_by(provider_id=provider.id, status="pending").all()
-        events_to_process = new_events + [{"existing_id": e.id, "title": e.title, "date": e.event_date, "detail_url": e.detail_url, "description": e.description or "", "status": e.status} for e in pending_events]
+        events_to_process = new_events + [{"existing_id": e.id, "title": e.title, "date": e.event_date, "detail_url": e.detail_url, "description": e.description or "", "status": e.status, "available_slots": e.capacity or 4} for e in pending_events]
 
         for ev in events_to_process:
             # Prüfen ob Event schon existiert (existing_id gesetzt)
@@ -203,15 +204,16 @@ def run_scraper(db: Session):
                         )
                     logger.info(f"Info-Mails versandt für Event {event.id}")
                 else:
-                    # Normale Buchung für 5 Personen
+                    # Buchung mit der tatsächlich verfügbaren Gäste-Anzahl
                     import asyncio
                     from booking import book_event
-                    success = asyncio.run(book_event(ev["detail_url"], ev["date"], ev["title"]))
+                    guests_to_book = ev.get("available_slots", 4)  # Standardmäßig 4, aber nutze verfügbare Anzahl
+                    success = asyncio.run(book_event(ev["detail_url"], ev["date"], ev["title"], custom_guests=guests_to_book))
                     if success:
                         event.status = "booked"
-                        event.capacity = 5
+                        event.capacity = guests_to_book
                         db.commit()
-                        logger.info(f"Event '{ev['title']}' am {ev['date'].strftime('%d.%m.')} SOFORT gebucht für 5 Personen")
+                        logger.info(f"Event '{ev['title']}' am {ev['date'].strftime('%d.%m.')} SOFORT gebucht für {guests_to_book} Personen")
 
                         participants = db.query(Participant).filter_by(notifications_enabled=True).all()
                         for p in participants:

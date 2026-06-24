@@ -400,9 +400,6 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
             await page.screenshot(path=f"screenshots/book_done_{event_date.strftime('%Y%m%d')}.png")
             logger.info(f"Buchung erfolgreich: {event_date.strftime('%d.%m.%Y')} um {chosen}")
             return True
-            await page.screenshot(path=f"screenshots/book_done_{event_date.strftime('%Y%m%d')}.png")
-            logger.info(f"Buchung abgeschlossen: {event_date.strftime('%d.%m.%Y')} um {chosen}")
-            return True
         except Exception as e:
             logger.error(f"Buchungsfehler ({detail_url}): {e}")
             return False
