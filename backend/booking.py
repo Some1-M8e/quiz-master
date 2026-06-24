@@ -198,6 +198,10 @@ async def _available_slots(ctx) -> list[str]:
         except Exception:
             pass
     logger.info(f"Verfügbare Slots (roh): {available}")
+
+    # WICHTIG: Wenn KEINE der Ziel-Slots (19:00, 19:15, 19:30) klickbar sind → Weiter-Button ist deaktiviert
+    if not available:
+        logger.error("Keine der Ziel-Slots (19:00, 19:15, 19:30) sind klickbar → Weiter-Button deaktiviert, Buchung abgebrochen!")
     return available
 
 
@@ -311,6 +315,11 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
                     return False
             except Exception:
                 pass
+
+            # EXPLIZIT: Prüfen ob Slot wirklich klickbar (is_enabled)
+            if not await slot_btn.is_enabled(timeout=2000):
+                logger.error(f"Slot {chosen} ist nicht klickbar (is_enabled=False) - Buchung abgebrochen!")
+                return False
 
             await slot_btn.click(timeout=5000)
             await page.wait_for_timeout(3000)
