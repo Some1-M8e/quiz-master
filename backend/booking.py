@@ -115,51 +115,23 @@ async def _set_guests(ctx, count: int = 4) -> bool:
         await guest_picker.click()
         await ctx.wait_for_timeout(1500)
 
-        # Modal ist offen - suche nach der Option mit der richtigen Anzahl
-        # Resmio verwendet aria-label wie "11 Gäste" oder role="option"
+        # Modal ist offen - suche nach "X Gäste" Text (z.B. "4 Gäste")
         target_text = f"{count} Gäste"
 
-        # Suche nach Option im Modal
-        option_selector = f"div[role='option'][aria-label*='{count}'], .guestpicker-modal [role='option']:has-text('{count}')"
-        try:
-            option = ctx.locator(option_selector).first
-            if await option.is_visible(timeout=2000):
-                await option.click()
-                logger.info(f"Gäste gesetzt auf {count}")
-                await ctx.wait_for_timeout(1000)
-                return True
-        except Exception:
-            pass
+        # Resmio zeigt Gäste als einfachen Text an (keine role='option')
+        option = ctx.get_by_text(target_text, exact=False).first
+        if await option.is_visible(timeout=2000):
+            await option.click()
+            logger.info(f"Gäste gesetzt auf {count}")
+            await ctx.wait_for_timeout(1000)
+            return True
 
-        # Fallback: Suche nach div mit aria-label containing the count
-        for i in range(20):  # Prüfe bis 20 Optionen
-            try:
-                option = ctx.locator(f"div[role='option']").nth(i)
-                text = await option.text_content() or ""
-                aria_label = await option.get_attribute("aria-label") or ""
-                if str(count) in aria_label or target_text in text:
-                    await option.click()
-                    logger.info(f"Gäste gesetzt auf {count} (Option {i})")
-                    await ctx.wait_for_timeout(1000)
-                    return True
-            except Exception:
-                continue
-
-        # Nochmal Fallback: Suche nach div mit Text "X Gäste"
-        try:
-            option = ctx.get_by_text(target_text, exact=False).first
-            if await option.is_visible(timeout=2000):
-                await option.click()
-                logger.info(f"Gäste gesetzt auf {count} (Text-Fallback)")
-                await ctx.wait_for_timeout(1000)
-                return True
-        except Exception:
-            pass
+        logger.warning(f"Option '{target_text}' nicht gefunden")
+        return False
 
     except Exception as e:
         logger.warning(f"Guest-Picker fehlgeschlagen: {e}")
-
-    return False
+        return False
 
 
 async def _available_slots(ctx) -> list[str]:
