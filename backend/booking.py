@@ -311,8 +311,14 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
             aria_disabled = await slot_btn.get_attribute("aria-disabled")
             slot_class = await slot_btn.get_attribute("class") or ""
 
-            if is_disabled or aria_disabled == "true" or "not-available" in slot_class.lower():
-                logger.error(f"Slot {chosen} ist nicht verfügbar (disabled/not-available) - Event ist ausgebucht!")
+            # Computed style prüfen (Resmio verwendet CSS-only für not-allowed)
+            cursor = await slot_btn.evaluate("""el => {
+                const computed = window.getComputedStyle(el.parentElement);
+                return computed.cursor;
+            }""")
+
+            if is_disabled or aria_disabled == "true" or "not-available" in slot_class.lower() or cursor == "not-allowed":
+                logger.error(f"Slot {chosen} ist nicht verfügbar (disabled/not-available/cursor=not-allowed) - Event ist ausgebucht!")
                 return False
 
             # Prüfen ob "not available" Text in der Nähe steht
