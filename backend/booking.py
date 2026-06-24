@@ -130,6 +130,9 @@ async def _set_guests(ctx, count: int = 4) -> bool:
                 await option.click()
                 logger.info(f"Gäste gesetzt auf {count}")
                 await ctx.wait_for_timeout(1000)
+                # Modal schließen (Escape) damit der Slot klickbar ist
+                await ctx.keyboard.press("Escape")
+                await ctx.wait_for_timeout(1000)
                 return True
 
         logger.warning(f"Keine Option für {count} Gäste gefunden (versucht: {variants})")
@@ -153,8 +156,9 @@ async def _available_slots(ctx) -> list[str]:
             # Slot-Text lesen (darunter steht ggf. "not available")
             slot_text = await slot.text_content() or ""
             # Cursor prüfen (not-allowed = nicht selektierbar)
+            # Prüfe das Element selbst, nicht parentElement (Slot könnte direkt not-allowed sein)
             cursor = await slot.evaluate("""el => {
-                const computed = window.getComputedStyle(el.parentElement);
+                const computed = window.getComputedStyle(el);
                 return computed.cursor;
             }""")
 
