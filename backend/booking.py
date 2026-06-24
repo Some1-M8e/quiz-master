@@ -98,6 +98,21 @@ async def _set_date(ctx, event_date: datetime) -> bool:
             except Exception:
                 continue
 
+        # Resmio-spezifisch: .datepicker-cell mit Text-Inhalt (und nicht is-unselectable)
+        try:
+            cells = await ctx.locator(".datepicker-cell").all()
+            for cell in cells:
+                text = await cell.text_content() or ""
+                if text.strip() == str(day):
+                    cls = await cell.get_attribute("class") or ""
+                    if "is-unselectable" not in cls:
+                        await cell.click()
+                        logger.info(f"Datum per .datepicker-cell gewählt: {date_de}")
+                        await ctx.wait_for_timeout(1000)
+                        return True
+        except Exception:
+            pass
+
         day_text_btn = ctx.get_by_text(str(day), exact=False).first
         if await day_text_btn.is_visible(timeout=2000):
             await day_text_btn.click()
