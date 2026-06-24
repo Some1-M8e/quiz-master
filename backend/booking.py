@@ -184,8 +184,15 @@ async def _available_slots(ctx) -> list[str]:
             disabled = await slot.get_attribute("disabled")
             aria_disabled = await slot.get_attribute("aria-disabled")
             cls = await slot.get_attribute("class") or ""
-            # Debug: Klasse ausgeben
-            logger.debug(f"Slot {t}: disabled={disabled}, aria-disabled={aria_disabled}, class='{cls}'")
+
+            # Computed style prüfen (Resmio verwendet CSS-only für not-allowed)
+            cursor = await slot.evaluate("""el => {
+                const computed = window.getComputedStyle(el.parentElement);
+                return computed.cursor;
+            }""")
+
+            # Debug: Alle Status ausgeben
+            logger.debug(f"Slot {t}: disabled={disabled}, aria-disabled={aria_disabled}, class='{cls}', cursor='{cursor}'")
 
             # Prüfen ob Slot wirklich verfügbar ist
             if (disabled is None and
@@ -193,7 +200,8 @@ async def _available_slots(ctx) -> list[str]:
                 "disabled" not in cls and
                 "full" not in cls and
                 "not-available" not in cls.lower() and
-                "unavailable" not in cls.lower()):
+                "unavailable" not in cls.lower() and
+                cursor != "not-allowed"):
                 available.append(t)
         except Exception:
             pass
