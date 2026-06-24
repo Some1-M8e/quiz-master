@@ -1,0 +1,32 @@
+[
+  {
+    "tc_id": "TC-001",
+    "name": "Gültiges Datum setzen",
+    "status": "PASS",
+    "message": "Tag 25 erfolgreich"
+  },
+  {
+    "tc_id": "TC-002",
+    "name": "Ungültiges Datum (is-unselectable)",
+    "status": "FAIL",
+    "message": "Tag 01 nicht unselectable"
+  },
+  {
+    "tc_id": "TC-004",
+    "name": "4 Gäste setzen",
+    "status": "PASS",
+    "message": "Gäste-Option gefunden"
+  },
+  {
+    "tc_id": "TC-008",
+    "name": "Slot cursor=pointer ist buchbar",
+    "status": "PASS",
+    "message": "19:00 buchbar (cursor=pointer)"
+  },
+  {
+    "tc_id": "TC-009",
+    "name": "Slot cursor=not-allowed ist nicht buchbar",
+    "status": "PASS",
+    "message": "19:15 nicht buchbar (cursor=not-allowed)"
+  }
+]
