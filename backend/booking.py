@@ -152,12 +152,12 @@ async def _available_slots(ctx) -> list[str]:
                 return computed.cursor;
             }""")
 
-            # Nicht buchbar = "not available" Text UND nicht selektierbar (cursor=not-allowed)
+            # Nicht buchbar = "not available" Text ODER nicht selektierbar (cursor=not-allowed)
             has_not_available = "not available" in slot_text.lower()
             is_not_selectable = cursor == "not-allowed"
 
-            if has_not_available and is_not_selectable:
-                logger.debug(f"Slot {t}: nicht buchbar (not available + not-allowed)")
+            if has_not_available or is_not_selectable:
+                logger.debug(f"Slot {t}: nicht buchbar (not available={has_not_available}, cursor={cursor})")
                 continue
 
             # Slot ist verfügbar
