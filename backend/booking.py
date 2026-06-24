@@ -79,46 +79,21 @@ async def _set_date(ctx, event_date: datetime) -> bool:
 
     # 3. Im Kalender das richtige Datum klicken
     try:
-        day_selectors = [
-            f"[data-date='{year}-{month:02d}-{day:02d}']",
-            f"[data-day='{day}']",
-            f".calendar-day[data-day='{day}']",
-            f"button:has-text('{day}')",
-            f"td[data-day='{day}']",
-        ]
-
-        for selector in day_selectors:
-            try:
-                day_btn = ctx.locator(selector).first
-                if await day_btn.is_visible(timeout=1000):
-                    await day_btn.click()
+        # Resmio verwendet .datepicker-cell mit Text-Inhalt (z.B. "25")
+        # Nicht-wählbare Tage haben class "is-unselectable"
+        cells = await ctx.locator(".datepicker-cell").all()
+        for cell in cells:
+            text = await cell.text_content() or ""
+            if text.strip() == str(day):
+                cls = await cell.get_attribute("class") or ""
+                if "is-unselectable" not in cls:
+                    await cell.click()
                     logger.info(f"Datum im Kalender gewählt: {date_de}")
                     await ctx.wait_for_timeout(1000)
                     return True
-            except Exception:
-                continue
 
-        # Resmio-spezifisch: .datepicker-cell mit Text-Inhalt (und nicht is-unselectable)
-        try:
-            cells = await ctx.locator(".datepicker-cell").all()
-            for cell in cells:
-                text = await cell.text_content() or ""
-                if text.strip() == str(day):
-                    cls = await cell.get_attribute("class") or ""
-                    if "is-unselectable" not in cls:
-                        await cell.click()
-                        logger.info(f"Datum per .datepicker-cell gewählt: {date_de}")
-                        await ctx.wait_for_timeout(1000)
-                        return True
-        except Exception:
-            pass
-
-        day_text_btn = ctx.get_by_text(str(day), exact=False).first
-        if await day_text_btn.is_visible(timeout=2000):
-            await day_text_btn.click()
-            logger.info(f"Datum per Text gewählt: {date_de}")
-            await ctx.wait_for_timeout(1000)
-            return True
+        logger.error(f"Konnte Datum {date_de} nicht setzen")
+        return False
 
     except Exception as e:
         logger.warning(f"Kalender-Datum nicht gefunden: {e}")
@@ -196,35 +171,33 @@ async def _available_slots(ctx) -> list[str]:
             slot = ctx.get_by_text(t, exact=True).first
             if not await slot.is_visible(timeout=2000):
                 continue
-            disabled = await slot.get_attribute("disabled")
-            aria_disabled = await slot.get_attribute("aria-disabled")
-            cls = await slot.get_attribute("class") or ""
 
-            # Computed style prüfen (Resmio verwendet CSS-only für not-allowed)
+            # Slot-Text lesen (darunter steht ggf. "not available")
+            slot_text = await slot.text_content() or ""
+            # Cursor prüfen (not-allowed = nicht selektierbar)
             cursor = await slot.evaluate("""el => {
                 const computed = window.getComputedStyle(el.parentElement);
                 return computed.cursor;
             }""")
 
-            # Debug: Alle Status ausgeben
-            logger.debug(f"Slot {t}: disabled={disabled}, aria-disabled={aria_disabled}, class='{cls}', cursor='{cursor}'")
+            # Nicht buchbar = "not available" Text UND nicht selektierbar (cursor=not-allowed)
+            has_not_available = "not available" in slot_text.lower()
+            is_not_selectable = cursor == "not-allowed"
 
-            # Prüfen ob Slot wirklich verfügbar ist
-            if (disabled is None and
-                aria_disabled != "true" and
-                "disabled" not in cls and
-                "full" not in cls and
-                "not-available" not in cls.lower() and
-                "unavailable" not in cls.lower() and
-                cursor != "not-allowed"):
-                available.append(t)
-        except Exception:
+            if has_not_available and is_not_selectable:
+                logger.debug(f"Slot {t}: nicht buchbar (not available + not-allowed)")
+                continue
+
+            # Slot ist verfügbar
+            available.append(t)
+            logger.debug(f"Slot {t}: buchbar")
+        except Exception as e:
+            logger.debug(f"Slot {t}: Fehler bei Prüfung - {e}")
             pass
-    logger.info(f"Verfügbare Slots (roh): {available}")
 
-    # WICHTIG: Wenn KEINE der Ziel-Slots (19:00, 19:15, 19:30) klickbar sind → Weiter-Button ist deaktiviert
+    logger.info(f"Verfügbare Slots: {available}")
     if not available:
-        logger.error("Keine der Ziel-Slots (19:00, 19:15, 19:30) sind klickbar → Weiter-Button deaktiviert, Buchung abgebrochen!")
+        logger.info("Keine der Ziel-Slots (19:00, 19:15, 19:30) sind buchbar")
     return available
 
 
@@ -326,14 +299,8 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
             aria_disabled = await slot_btn.get_attribute("aria-disabled")
             slot_class = await slot_btn.get_attribute("class") or ""
 
-            # Computed style prüfen (Resmio verwendet CSS-only für not-allowed)
-            cursor = await slot_btn.evaluate("""el => {
-                const computed = window.getComputedStyle(el.parentElement);
-                return computed.cursor;
-            }""")
-
-            if is_disabled or aria_disabled == "true" or "not-available" in slot_class.lower() or cursor == "not-allowed":
-                logger.error(f"Slot {chosen} ist nicht verfügbar (disabled/not-available/cursor=not-allowed) - Event ist ausgebucht!")
+            if is_disabled or aria_disabled == "true" or "not-available" in slot_class.lower():
+                logger.error(f"Slot {chosen} ist nicht verfügbar (disabled/not-available) - Event ist ausgebucht!")
                 return False
 
             # Prüfen ob "not available" Text in der Nähe steht
@@ -344,11 +311,6 @@ async def book_event(detail_url: str, event_date: datetime, event_title: str = "
                     return False
             except Exception:
                 pass
-
-            # EXPLIZIT: Prüfen ob Slot wirklich klickbar (is_enabled)
-            if not await slot_btn.is_enabled(timeout=2000):
-                logger.error(f"Slot {chosen} ist nicht klickbar (is_enabled=False) - Buchung abgebrochen!")
-                return False
 
             await slot_btn.click(timeout=5000)
             await page.wait_for_timeout(3000)
