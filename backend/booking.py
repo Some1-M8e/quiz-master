@@ -115,18 +115,24 @@ async def _set_guests(ctx, count: int = 4) -> bool:
         await guest_picker.click()
         await ctx.wait_for_timeout(1500)
 
-        # Modal ist offen - suche nach "X Gäste" Text (z.B. "4 Gäste")
-        target_text = f"{count} Gäste"
+        # Resmio zeigt Gäste als einfachen Text an (z.B. "4 Gäste", "4 Gaste", "4 Guests")
+        # Suche nach mehreren Varianten um Encoding-Probleme zu vermeiden
+        variants = [
+            f"{count} Gäste",   # Mit Umlaut
+            f"{count} Gaste",   # Ohne Umlaut
+            f"{count} Guests",  # Englisch
+            f"{count} Gast",    # Singular
+        ]
 
-        # Resmio zeigt Gäste als einfachen Text an (keine role='option')
-        option = ctx.get_by_text(target_text, exact=False).first
-        if await option.is_visible(timeout=2000):
-            await option.click()
-            logger.info(f"Gäste gesetzt auf {count}")
-            await ctx.wait_for_timeout(1000)
-            return True
+        for text in variants:
+            option = ctx.get_by_text(text, exact=False).first
+            if await option.is_visible(timeout=500):
+                await option.click()
+                logger.info(f"Gäste gesetzt auf {count}")
+                await ctx.wait_for_timeout(1000)
+                return True
 
-        logger.warning(f"Option '{target_text}' nicht gefunden")
+        logger.warning(f"Keine Option für {count} Gäste gefunden (versucht: {variants})")
         return False
 
     except Exception as e:
